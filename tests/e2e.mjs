@@ -120,20 +120,20 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     // a rating without a comment
     await page.locator('.item').nth(1).locator('.scale label:nth-child(5)').click();
     await page.screenshot({ path: `${OUT}/04-section-answered-360.png`, fullPage: true });
-    // items 3..5 blank and item 2 without a comment: Next is refused with a clear note, no "continue anyway"
+    // items 3..5 blank: Next is refused with a clear note, no "continue anyway"; item 2 (rated, no comment) is fine
     await page.click('.bar-inner .btn-primary');
     await page.waitForSelector('.soft');
-    assert.match(await page.textContent('.soft'), /3 пункти без оцінки\. 1 пункт без коментаря\./);
+    assert.match(await page.textContent('.soft'), /^3 пункти без оцінки\. /);
+    assert.ok(!/коментар/.test(await page.textContent('.soft')), 'comments on items are not required');
     assert.equal(await page.locator('.soft button').count(), 1, 'only "Show which"');
     await page.screenshot({ path: `${OUT}/05-soft-prompt-360.png` });
     await page.click('.soft button:has-text("Показати")');
     await settle(page);
-    assert.equal(await page.locator('.item.flash').count(), 4);
-    assert.equal(await page.locator('.item.need-comment').count(), 1);
+    assert.equal(await page.locator('.item.flash').count(), 3);
     assert.match(await page.textContent('.progress-meta'), /Крок 1 з 5/, 'still on page 1');
-    // typing the missing comment clears its flag
-    await page.locator('.item').nth(1).locator('textarea').fill('Цікаво.');
-    assert.equal(await page.locator('.item.need-comment').count(), 0);
+    // rating a flagged item clears its flag
+    await page.locator('.item').nth(2).locator('.scale label:nth-child(6)').click();
+    assert.equal(await page.locator('.item.flash').count(), 2);
     await axe(page, 'section');
   });
   await step('answer the rest, reload mid-way resumes the draft', async () => {

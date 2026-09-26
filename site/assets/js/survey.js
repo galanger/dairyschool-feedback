@@ -113,12 +113,12 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
   const answer = (id) => S.draft.answers[id];
   const isAnswered = (it) => answer(it.id) !== undefined && answer(it.id) !== null;
   const hasComment = (it) => !!(S.draft.comments[it.id] || '').trim();
-  // Everything is required: a rating (or "didn't take part") and a comment on every rated item.
-  // Optional items ("for the ladies") may be left untouched.
+  // Every item needs a rating (or "didn't take part"); a comment is welcome but not required.
+  // Optional items ("for the ladies") may be left untouched. The two closing questions are required.
   const missingOf = (it) => {
     if (answer(it.id) === 'na') return null;
     if (!isAnswered(it)) return it.optional && !hasComment(it) ? null : 'rating';
-    return hasComment(it) ? null : 'comment';
+    return null;
   };
   const incompleteIn = (sec) => sec.items.map((it) => ({ it, need: missingOf(it) })).filter((m) => m.need);
   const openMissing = () => (sem().openQuestions || []).filter((q) => !(S.draft.open[q.id] || '').trim()).map((q) => ({ q, need: 'open' }));
@@ -386,14 +386,10 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     let beforeNa = null; // the rating to restore if "didn't take part" is undone
 
     // A flagged card stays flagged until it is complete; the flag says what is still missing.
-    const setFlag = (need) => {
-      card.classList.add('flash'); card.classList.toggle('need-comment', need === 'comment');
-      flag.lastChild.textContent = t(need === 'comment' ? 'needComment' : 'noAnswerYet'); flag.hidden = false;
-    };
+    const setFlag = () => { card.classList.add('flash'); flag.hidden = false; };
     const refreshFlag = () => {
       if (flag.hidden) return;
-      const need = missingOf(it);
-      if (need) setFlag(need); else { card.classList.remove('flash', 'need-comment'); flag.hidden = true; }
+      if (missingOf(it)) setFlag(); else { card.classList.remove('flash'); flag.hidden = true; }
     };
     const sync = () => {
       const v = answer(id);
@@ -409,7 +405,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
       radios.forEach((l) => { l.firstChild.checked = String(v) === l.firstChild.value; });
       echo.textContent = Number.isInteger(v) ? t('echo', { n: v }) : '';
     };
-    card.markMissing = (need) => setFlag(need || missingOf(it) || 'rating');
+    card.markMissing = () => setFlag();
 
     radios.forEach((l) => l.firstChild.addEventListener('change', (e) => {
       S.draft.answers[id] = Number(e.target.value);
@@ -469,8 +465,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
 
     const children = [head,
       h('div', { class: 'sec-head' }, h('h1', { tabindex: '-1' }, isLast ? t('lastTitle') : L(sec.title)),
-        !isLast && h('p', { class: 'scale-hint' }, t('scaleHint')),
-        h('p', { class: 'cmt-hint' }, t('commentHint'))),
+        !isLast && h('p', { class: 'scale-hint' }, t('scaleHint'))),
       itemsEl];
 
     let summaryEl = null;
@@ -516,7 +511,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
   // the note says what is missing and "Show which" takes the person there. Nothing is sent early.
   function needPrompt(note, missing) {
     const count = (need, base) => { const n = missing.filter((m) => m.need === need).length; return n ? t.plural(base, n) : null; };
-    const lines = [count('rating', 'needRating'), count('comment', 'needComments'), count('open', 'needOpen')].filter(Boolean);
+    const lines = [count('rating', 'needRating'), count('open', 'needOpen')].filter(Boolean);
     const onlyOpen = missing.every((m) => m.need === 'open');
     swap(note, h('div', { class: 'soft', role: 'alert' },
       h('p', {}, h('b', {}, lines.join(' ')), ' ', t(onlyOpen ? 'needOpenHint' : 'needHint')),

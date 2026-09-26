@@ -15,9 +15,10 @@ gets the classic results sheet plus an analysis. No names, times or tracking are
 Views on the site: `?s=<seminar>` (participant), `?s=<seminar>#guide-<key>` (guide: QR, progress,
 missing names, never scores) and `?s=<seminar>#results` (staff, passcode, unlocked after closing).
 
-Every item asks for a rating (or "didn't take part") **and a short comment**, and the two closing
-questions are required too (the school's decision). "Next" and "Send" refuse until the page is
-complete and show which items are missing; nothing is sent half-done.
+Every item asks for a rating (or "didn't take part") and offers a comment box, as on the paper
+form; comments on items are welcome but optional. The two closing questions ("most valuable part",
+"what could we do better") are required (the school's decision). "Next" and "Send" refuse until the
+page is complete and show which items are missing; nothing is sent half-done.
 
 ## Data safety
 
@@ -42,7 +43,7 @@ complete and show which items are missing; nothing is sent half-done.
 | Step | Participant | School |
 |---|---|---|
 | Before | – | Create the seminar in the Sheet, paste names, preview, **Open survey** (hourly safety copies start). |
-| During | Scans the QR, picks their name, rates every item with a comment, answers the two closing questions, sends. Sees "Thank you", never any results. Can answer once only. | Guide page: progress, who is missing, add an extra person, remove a no-show, fix a wrong tap. Results page shows progress only. |
+| During | Scans the QR, picks their name, rates every item (comments optional), answers the two required closing questions, sends. Sees "Thank you", never any results. Can answer once only. | Guide page: progress, who is missing, add an extra person, remove a no-show, fix a wrong tap. Results page shows progress only. |
 | Finish | A late sender is told the survey is closed. | **Close survey** on the results page (or the Sheet menu): names deleted, dated copy + CSV emailed, results unlock. Then: client results sheet (print/PDF), comments (translations finish in the background), CSV download. |
 
 ## Run locally

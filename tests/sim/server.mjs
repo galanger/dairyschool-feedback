@@ -49,7 +49,7 @@ export function startSimServer(port = 8770) {
     }
   });
   // Queue one command and wait until the page reports it done (or the timeout passes).
-  function run(cmd, timeout = 20000) {
+  function run(cmd, timeout = 45000) { // the simulator can stall for a while when the Mac is busy
     const id = ++seq;
     queue.push({ id, ...cmd });
     return new Promise((resolve, reject) => {

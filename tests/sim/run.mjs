@@ -68,7 +68,7 @@ try {
   await step('tap', { sel: '#card-i06 .linkbtn.quiet' });
   await step('show', { sel: '#card-i06', block: 'center' }, 'didnt-take-part', '“For the ladies” item: didn’t take part');
   await step('rate', { card: 1, value: 5 });
-  await step('tap', { sel: '.bar-inner .btn-primary' }, 'prompt', 'Next with unrated items and a missing comment: refused with a note');
+  await step('tap', { sel: '.bar-inner .btn-primary' }, 'prompt', 'Next with unrated items: refused with a note');
   await step('tap', { sel: '.soft .btn-primary' }, 'show-which', 'Show which: incomplete items flagged');
   await step('rateAll', { value: 5 });
   await step('tap', { sel: '.bar-inner .btn-primary' }, 'section-2', 'Section 2');
