@@ -74,6 +74,7 @@ npm test                 # unit + backend tests (Code.gs runs against a fake She
 bash tests/run-all.sh    # everything: unit, e2e on Chrome/WebKit/Firefox, bundle, print, load time
 node tests/atlas.mjs     # screenshots of every screen  → tests/atlas/
 node tests/sim/run.mjs   # real iOS Safari walkthrough on the iPhone simulator (macOS + Xcode)
+node tests/live-check.mjs  # the deployed site: three pages, no stray bar or links, results demo (BASE=…)
 ```
 
 ## Deploy
