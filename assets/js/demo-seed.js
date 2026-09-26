@@ -1,0 +1,13 @@
+// Starting data for the prototype's in-browser backend.
+// demo-2023.local.js (real 2023 answers) exists only on the local machine and in the
+// private prototype; it is git-ignored so it can never reach the public site.
+import { DEMO_SEMINAR } from './demo-data.js';
+
+export async function buildSeed() {
+  const seminars = { demo: { ...DEMO_SEMINAR, used: {}, responses: [] } };
+  try {
+    const m = await import('./demo-2023.local.js');
+    if (m.BOVICURA_2023) seminars[m.BOVICURA_2023.id] = m.BOVICURA_2023;
+  } catch { /* not available on the public site */ }
+  return { version: 5, seminars };
+}
