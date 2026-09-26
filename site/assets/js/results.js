@@ -251,7 +251,7 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
             it.justBelow && h('span', { class: 'chip chip-soft' }, 'just below 80%'),
             it.split && h('span', { class: 'chip chip-soft' }, 'opinions split'),
             it.fewAnswers && h('span', { class: 'chip chip-soft' }, 'few answers')),
-          it.comments[0] && h('p', { class: 'sum-quote' }, `“${it.comments[0].text}”`, h('span', { class: 'cmeta' }, ` — ${ratingNote(it.comments[0].rating)}`)),
+          it.comments[0] && h('p', { class: 'sum-quote' }, `“${tr(it.comments[0].text) || it.comments[0].text}”`, h('span', { class: 'cmeta' }, ` — ${ratingNote(it.comments[0].rating)}`)),
           show(it))))
           : h('p', { class: 'muted' }, 'Nothing scored below 80%.'));
       const good = h('div', { class: 'sum-col' },

@@ -521,6 +521,24 @@ async function patchState(page, fn) {
     assert.ok(await page.locator('.name-opt', { hasText: 'Kravchenko' }).evaluate((el) => el.classList.contains('is-done')));
     assert.ok(await page.locator('.bar-inner .btn-primary').isDisabled());
   });
+  await step('results demo: a closed sample seminar with invented answers shows the whole dashboard', async () => {
+    await page.goto(viewUrl(BASE, 'staff', { s: 'demo-results' })); await page.waitForSelector('.kpis'); await settle(page, 300);
+    assert.match(await page.textContent('.rs-head'), /18 responses of 20 invited \(90%\)/);
+    assert.match(await page.textContent('.kpi.hero'), /6\.6/);
+    assert.match(await page.textContent('main'), /Needs attention \(4\)/);
+    assert.match(await page.textContent('main'), /opinions split/);
+    assert.equal(await page.locator('.rt tbody tr.row').count(), 25);
+    assert.equal(await page.locator('.chip-few').count(), 1, 'the Bedouin item has few answers');
+    await page.click('.tabs button:has-text("Comments")'); await settle(page, 300);
+    assert.match(await page.textContent('main'), /Translation: Too little time on the farm/);
+    await page.click('.tabs button:has-text("Client sheet")'); await settle(page, 400);
+    assert.equal(await page.locator('.sheet tbody tr').count(), 25);
+    assert.match(await page.textContent('.sheet h2'), /Satisfaction results for a sample group, March 2026/);
+    assert.equal(await page.locator('.sheet td.hl').count(), 8, 'four items highlighted, score and %');
+    await page.click('.tabs button:has-text("Data")'); await settle(page, 300);
+    assert.match(await page.textContent('.dq'), /1\s*gave every item the same score/);
+    assert.deepEqual(page.errors, []);
+  });
   await ctx.close();
 }
 

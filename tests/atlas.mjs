@@ -226,6 +226,9 @@ async function login(page) {
     await page.click(`.tabs button:has-text("${tab}")`); await page.locator('.tabs').scrollIntoViewIfNeeded();
     await shot(page, file, what);
   }
+  // the public site's sample seminar with invented answers
+  await page.selectOption('.rs-head select', 'demo-results'); await page.waitForSelector('.kpis'); await settle(page, 400);
+  await shot(page, 'r18-demo-results', 'Results demo on the public site: a closed sample seminar with invented answers');
   await ctx.close();
   const ph = await ctxPage(iphone);
   await login(ph.page); await ph.page.fill('#pass', 'demo'); await ph.page.click('button[type=submit]');

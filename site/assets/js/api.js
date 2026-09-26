@@ -75,7 +75,7 @@ export function resetMock() {
 }
 
 function publicConfig(s) {
-  const { responses, used, adminNote, ...rest } = s;
+  const { responses, used, adminNote, translations, ...rest } = s;
   return {
     ...rest,
     names: (s.names || []).map((n) => ({ ...n, answered: !!used[n.id] })),
@@ -175,7 +175,7 @@ function mockApi(cfg) {
       if (!staffOk(key)) return { ok: false, code: 'UNAUTHORIZED' };
       const base = { seminar: publicConfig(s), invited: s.invited ?? s.names.length, answered: s.responses.length };
       if (s.status !== 'closed') return { ok: false, code: 'LOCKED', ...base };
-      return { ok: true, ...base, responses: s.responses.map(({ id: _id, ...r }) => r) };
+      return { ok: true, ...base, responses: s.responses.map(({ id: _id, ...r }) => r), translations: s.translations || {}, translationsPending: 0 };
     }),
 
     setStatus: (id, key, status) => run((st) => {

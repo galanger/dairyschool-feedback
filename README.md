@@ -62,7 +62,9 @@ npm run serve          # http://127.0.0.1:8765/  (prototype mode: in-browser dem
 ```
 
 Without `backendUrl` in `site/config.js` the site runs against an in-browser mock with the same rules
-as the real backend, seeded from `site/assets/js/demo-data.js` (invented names).
+as the real backend, seeded from `site/assets/js/demo-data.js` (invented names) plus a closed sample
+seminar with invented answers (`demo-results.js`) so the staff page has results to show:
+`staff.html?s=demo-results`, any passcode.
 `site/assets/js/demo-2023.local.js` (real 2023 answers) is git-ignored and never leaves this machine.
 
 ## Test
