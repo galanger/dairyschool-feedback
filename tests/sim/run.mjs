@@ -83,7 +83,7 @@ try {
   await step('fill', { sel: '#o-q2', value: 'Більше часу на фермах.' });
   await step('rateAll', { value: 7 });
   await step('show', { sel: '.summary', block: 'center' }, 'summary-send', 'Summary seen: Send is ready');
-  await step('tap', { sel: '#send' }, 'thanks', 'Sent: thank-you screen');
+  await step('tap', { sel: '#send' }, 'thanks', 'Sent: thank-you screen with the Google review ask');
   await step('reload'); await step('wait', { ms: 800 }, 'already', 'Same phone reopens the link');
   await step('tap', { sel: 'main .btn-secondary' });
   await step('tap', { sel: '.bar-inner .btn-primary' });
@@ -94,14 +94,14 @@ try {
   await step('tap', { sel: '.bar-inner .btn-primary' }, 'section-1-en', 'Section 1 in English');
   await step('goto', { url: `${BASE}?s=nope-nope` }); await step('wait', { ms: 800 }, 'invalid-link', 'Invalid link, both languages');
   // ---------- guide ----------
-  await step('goto', { url: `${BASE}?s=demo#guide-demo` }); await step('wait', { ms: 1200 }, 'guide', 'Guide view (English)');
+  await step('goto', { url: `${BASE}guide.html?s=demo#demo` }); await step('wait', { ms: 1200 }, 'guide', 'Guide view (English)');
   await step('tap', { sel: 'details.onday summary', text: 'Add a name' });
   await step('show', { sel: '.onday-panel', block: 'start' }, 'guide-on-day', 'Guide: fixes on the day (extra person, no-show, wrong tap)');
   await step('top');
   await step('tap', { sel: 'button', text: 'Full-screen QR code' }, 'guide-qr', 'Full-screen QR for the group');
   await step('tap', { sel: '.qr-full .btn' });
   // ---------- staff results on a phone ----------
-  await step('hash', { value: 'results' }); await step('wait', { ms: 800 }, 'results-gate', 'Staff passcode');
+  await step('goto', { url: `${BASE}staff.html?s=demo` }); await step('wait', { ms: 900 }, 'results-gate', 'Staff passcode');
   await step('fill', { sel: '#pass', value: 'demo' });
   await step('tap', { sel: '.gate button[type=submit]' });
   await step('show', { sel: '.big-count', block: 'center' }, 'results-open', 'Survey still open: results locked');

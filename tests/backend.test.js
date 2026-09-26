@@ -244,8 +244,11 @@ test('menu: close asks first; passcode and address are validated', () => {
   said = withUi(env, ['http://x.com']); env.menuSiteUrl(); assert.match(said.at(-1), /https/);
   said = withUi(env, ['https://feedback.dairyschool.co.il/']); env.menuSiteUrl();
   said = withUi(env, [S]); env.menuLinks();
-  assert.match(said.at(-1), /https:\/\/feedback\.dairyschool\.co\.il\/\?s=uvt-2026-ab12#guide-guide-key-1/);
-  assert.match(said.at(-1), /#results/);
+  assert.match(said.at(-1), /https:\/\/feedback\.dairyschool\.co\.il\/\?s=uvt-2026-ab12\n/, 'participant link');
+  assert.match(said.at(-1), /https:\/\/feedback\.dairyschool\.co\.il\/guide\.html\?s=uvt-2026-ab12#guide-key-1/, 'guide link');
+  assert.match(said.at(-1), /https:\/\/feedback\.dairyschool\.co\.il\/staff\.html\?s=uvt-2026-ab12/, 'staff link');
+  assert.equal(env.siteBase_('https://x.github.io/repo/index.html'), 'https://x.github.io/repo/');
+  assert.equal(env.siteBase_('https://feedback.example/?x=1'), 'https://feedback.example/');
 });
 
 // ---------- data safety: nothing is ever lost ----------

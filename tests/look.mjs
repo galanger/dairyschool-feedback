@@ -4,7 +4,7 @@ const S = '/private/tmp/claude-501/-Users-liatgigi/d8bf0b2a-c1f9-44ce-b920-2c398
 // 1) results screenshot from the prototype: top of the 2023 dashboard
 {
   const p = await (await b.newContext({ viewport: { width: 1200, height: 860 }, deviceScaleFactor: 1 })).newPage();
-  await p.goto('http://127.0.0.1:8765/#results'); await p.waitForSelector('#pass');
+  await p.goto('http://127.0.0.1:8765/staff.html'); await p.waitForSelector('#pass');
   await p.fill('#pass', 'demo'); await p.click('button[type=submit]'); await p.waitForSelector('.rs-head select');
   await p.selectOption('.rs-head select', 'bovicura-2023'); await p.waitForSelector('.kpis'); await p.waitForTimeout(500);
   await p.evaluate(() => document.querySelector('.demo-bar')?.remove());

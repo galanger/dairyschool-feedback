@@ -1,5 +1,6 @@
 // Screenshots of every screen and state, for design review. Output: tests/atlas/*.png + index.json
 import { chromium, devices } from 'playwright-core';
+import { viewUrl } from './engine.mjs';
 import { writeFileSync } from 'node:fs';
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8765/';
@@ -98,7 +99,7 @@ async function next(page) { await page.click('.bar-inner .btn-primary'); await p
   await arm(page); await page.click('#send'); await page.waitForSelector('.alert-error');
   await shot(page, 'p22-send-failed', 'Send failed (no signal): answers kept, Try again');
   await page.click('.alert-error button'); await page.waitForSelector('.badge-ok');
-  await shot(page, 'p24-thanks', 'Thanks screen (no results shown)');
+  await shot(page, 'p24-thanks', 'Thanks screen: answers received, one-tap Google review ask, no results shown');
   await page.reload(); await page.waitForSelector('.badge-ok');
   await shot(page, 'p25-already', 'Same phone opens the link again: already answered');
   await page.click('main .btn-secondary'); await page.waitForSelector('.hero');
@@ -170,7 +171,7 @@ for (const [name, opts, what] of [
 // ---------- guide ----------
 {
   const { ctx, page } = await ctxPage();
-  await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.qr-box svg');
+  await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.qr-box svg');
   await shot(page, 'g01-guide-en', 'Guide view (English by default): QR, progress, who is missing');
   await page.click('details.onday summary:has-text("Add a name")'); await page.locator('.onday-panel').scrollIntoViewIfNeeded();
   await shot(page, 'g05-guide-on-day', 'Guide: fixes on the day (add a name, a no-show, a wrong tap)');
@@ -187,14 +188,14 @@ for (const [name, opts, what] of [
   await shot(page, 'g04-guide-all-done', 'Everyone has answered (answers count comes from real submissions)');
   await ctx.close();
   const nk = await ctxPage();
-  await nk.page.goto(`${BASE}#guide`); await nk.page.waitForSelector('main p');
+  await nk.page.goto(viewUrl(BASE, 'guide')); await nk.page.waitForSelector('main p');
   await shot(nk.page, 'g06-guide-no-key', 'Guide link without its key');
   await nk.ctx.close();
 }
 
 // ---------- results ----------
 async function login(page) {
-  await page.goto(`${BASE}#results`); await page.waitForSelector('#pass');
+  await page.goto(viewUrl(BASE, 'staff')); await page.waitForSelector('#pass');
 }
 {
   const desk = { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 };

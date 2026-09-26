@@ -673,12 +673,24 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
       h('p', {}, t('anotherQ')),
       h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { store.del(K.done); store.del(K.draft); newDraft(); show('welcome'); } }, t('anotherBtn'))];
   }
+  // A short ask for a Google review, one tap to Google's own review box (only when a link is set).
+  function reviewAsk() {
+    const url = cfg.reviewUrl;
+    if (!url || !/^https:\/\//.test(url)) return null;
+    const star = () => { const s = icon('star'); return s; };
+    return h('div', { class: 'review' },
+      h('div', { class: 'stars', 'aria-hidden': 'true' }, star(), star(), star(), star(), star()),
+      h('h2', {}, t('reviewTitle')),
+      h('p', {}, t('reviewText')),
+      h('a', { class: 'btn btn-primary review-btn', href: url, target: '_blank', rel: 'noopener' }, t('reviewBtn')));
+  }
   function thanks() {
     setBar();
     return h('section', { class: 'screen center' },
       h('div', { class: 'badge-ok' }, icon('check')),
       h('h1', { tabindex: '-1' }, t('thanksTitle')),
       h('p', {}, t('thanksText')),
+      reviewAsk(),
       h('p', {}, t('thanksTrip')),
       ...anotherPerson());
   }
@@ -688,6 +700,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
       h('div', { class: 'badge-ok' }, icon('check')),
       h('h1', { tabindex: '-1' }, t('alreadyTitle')),
       h('p', {}, t('alreadyText')),
+      reviewAsk(),
       ...anotherPerson());
   }
   function closed() {

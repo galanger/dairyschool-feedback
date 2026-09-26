@@ -3,7 +3,7 @@ import { h, icon, store, swap, softFocus } from './dom.js';
 import { makeT, formatDates, pick } from './i18n.js';
 import { loadStyles, loadScript } from './loader.js';
 
-export async function mount(root, { api, seminarId, key, cfg, alive = () => true }) {
+export async function mount(root, { api, seminarId, key, cfg, inline = false, alive = () => true }) {
   await loadStyles('assets/css/staff.css');
   // Guides are staff (usually Israeli): English by default, remembered separately from participants.
   let lang = store.get('dsf:guideLang') || 'en';
@@ -14,8 +14,10 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
   const main = h('main', { class: 'main' });
   swap(root, h('div', { class: 'app' }, topbar, main));
 
+  // The participants' page: the configured public address, else this site's folder (index.html);
+  // the single-file prototype is its own participant page.
   const surveyUrl = () => {
-    const base = cfg.publicUrl || `${location.origin}${location.pathname}`;
+    const base = cfg.publicUrl || (inline ? `${location.origin}${location.pathname}` : new URL('./', location.href).href);
     return `${base}${base.includes('?') ? '&' : '?'}s=${encodeURIComponent(seminarId)}`;
   };
 

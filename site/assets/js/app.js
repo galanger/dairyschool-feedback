@@ -1,21 +1,31 @@
-// Entry point: picks the participant survey, the guide view (#guide-KEY) or staff results (#results).
+// Entry point. One page per role: index.html is the participant's questionnaire and nothing else,
+// guide.html is the guide's page (its key in the hash), staff.html is the passcode-protected staff
+// page. Only the single-file prototype bundle has one page that switches views by hash, with a bar.
 import { createApi, resetMock } from './api.js';
 import { h } from './dom.js';
 
-function modeFromHash() {
+const inline = !!window.DSF_INLINE; // the prototype bundle
+
+function modeFromPage() {
+  const view = document.body.dataset.view;
   const hash = decodeURIComponent(location.hash.slice(1));
-  if (hash.startsWith('guide')) return { mode: 'guide', key: hash.replace(/^guide-?/, '') };
-  if (hash.startsWith('results')) return { mode: 'results', key: null };
+  if (view === 'guide') return { mode: 'guide', key: hash }; // guide.html#KEY, taken exactly as written
+  if (view === 'staff') return { mode: 'results', key: null };
+  if (inline) {
+    if (hash.startsWith('guide')) return { mode: 'guide', key: hash.replace(/^guide-?/, '') };
+    if (hash.startsWith('results')) return { mode: 'results', key: null };
+  }
   return { mode: 'survey', key: null };
 }
 
+// Prototype bundle only: switch between the three roles' views.
 function demoBar(mode) {
   const link = (href, label, on) => h('a', { href, 'aria-current': on ? 'page' : null }, label);
   return h('nav', { class: 'demo-bar', 'aria-label': 'Prototype views' },
     h('span', { class: 'demo-tag' }, 'Prototype'),
     link('#survey', 'Participant', mode === 'survey'),
     link('#guide-demo', 'Guide', mode === 'guide'),
-    link('#results', 'Results', mode === 'results'),
+    link('#results', 'Staff', mode === 'results'),
     h('button', { type: 'button', onclick: () => {
       resetMock();
       try { Object.keys(localStorage).filter((k) => k.startsWith('dsf:')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
@@ -38,7 +48,7 @@ let generation = 0;
 let lastMode = null;
 
 async function boot(force = false) {
-  const { mode, key } = modeFromHash();
+  const { mode, key } = modeFromPage();
   if (!force && mode === lastMode) return;
   lastMode = mode;
   const gen = ++generation;
@@ -51,7 +61,7 @@ async function boot(force = false) {
   }
   // clean up the previous view
   document.querySelectorAll('.demo-bar, .tip, .qr-full').forEach((el) => el.remove());
-  if (demo) document.body.prepend(demoBar(mode));
+  if (inline) document.body.prepend(demoBar(mode));
   document.body.classList.toggle('staff', mode !== 'survey');
   const root = document.getElementById('app');
   window.scrollTo(0, 0);
@@ -59,8 +69,8 @@ async function boot(force = false) {
   const configRequest = mode === 'survey' && seminarId ? api.getConfig(seminarId) : null;
   const mod = await import(mode === 'guide' ? './guide.js' : mode === 'results' ? './results.js' : './survey.js');
   if (gen !== generation) return;
-  mod.mount(root, { api, seminarId, key, cfg, demo, configRequest, alive: () => gen === generation });
+  mod.mount(root, { api, seminarId, key, cfg, demo, inline, configRequest, alive: () => gen === generation });
 }
 
-window.addEventListener('hashchange', () => boot());
+if (inline) window.addEventListener('hashchange', () => boot());
 boot();

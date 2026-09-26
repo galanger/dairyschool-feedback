@@ -608,11 +608,19 @@ function pickSeminar_(verb) {
 function menuLinks() {
   var row = pickSeminar_('Get links');
   if (!row) return;
-  var site = props_().getProperty('SITE_URL') || '(set the survey address first)';
-  var sep = site.indexOf('?') >= 0 ? '&' : '?';
-  say_('Participants (QR code):\n' + site + sep + 's=' + row.id +
-    '\n\nGuide (progress only, no scores):\n' + site + sep + 's=' + row.id + '#guide-' + row.guide_key +
-    '\n\nResults (staff passcode):\n' + site + sep + 's=' + row.id + '#results');
+  var site = props_().getProperty('SITE_URL');
+  if (!site) return say_('Set the survey address first: Dairy School → Set survey address.');
+  var base = siteBase_(site);
+  say_('Participants (QR code):\n' + base + '?s=' + row.id +
+    '\n\nGuide (progress and names, never scores):\n' + base + 'guide.html?s=' + row.id + '#' + row.guide_key +
+    '\n\nStaff (passcode; results after closing):\n' + base + 'staff.html?s=' + row.id);
+}
+
+// "https://feedback.example/" or "https://x.github.io/repo/index.html" → the site folder, with a slash.
+function siteBase_(site) {
+  var b = String(site).replace(/[?#].*$/, '');
+  if (!/\/$/.test(b)) b = b.replace(/[^/]*$/, '');
+  return b;
 }
 
 function menuOpen() {

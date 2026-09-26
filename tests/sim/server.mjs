@@ -41,7 +41,7 @@ export function startSimServer(port = 8770) {
     if (!path || path.endsWith('/')) path += 'index.html';
     try {
       let data = await readFile(join(ROOT, path));
-      if (path === 'index.html') data = Buffer.from(String(data).replace('</head>', '<script src="/__tour.js" defer></script>\n</head>'));
+      if (path.endsWith('.html')) data = Buffer.from(String(data).replace('</head>', '<script src="/__tour.js" defer></script>\n</head>'));
       res.writeHead(200, { 'Content-Type': TYPES[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
       res.end(data);
     } catch {

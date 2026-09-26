@@ -1,7 +1,7 @@
 // End-to-end checks of the prototype in real Chrome with phone emulation.
 // Run: node tests/e2e.mjs   (needs the local server: npm run serve)
 import { devices } from 'playwright-core';
-import { launch, adapt, ENGINE, isChromium } from './engine.mjs';
+import { launch, adapt, ENGINE, isChromium, viewUrl } from './engine.mjs';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
@@ -176,6 +176,12 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     await page.screenshot({ path: `${OUT}/08-send-failed-360.png` });
     await page.click('.alert-error button');
     await page.waitForSelector('.badge-ok'); await settle(page);
+    // the thank-you screen asks for a Google review: one tap, opens in a new tab, https only
+    const review = page.locator('.review a');
+    assert.equal(await review.count(), 1, 'Google review ask on the thank-you screen');
+    assert.equal(await review.getAttribute('target'), '_blank');
+    assert.match(await review.getAttribute('href'), /^https:\/\//);
+    assert.equal(await page.locator('main a').count(), 1, 'the review link is the only link a participant ever sees');
     assert.match(await page.textContent('main h1'), /Дякуємо/);
     await page.screenshot({ path: `${OUT}/09-thanks-360.png` });
     await axe(page, 'thanks');
@@ -236,7 +242,7 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
 {
   const { ctx, page } = await newPage(devices['iPhone 13']);
   await step('guide view shows QR, progress and missing names (no scores)', async () => {
-    await page.goto(`${BASE}#guide-demo`);
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' }));
     await page.waitForSelector('.qr-box svg'); await settle(page);
     assert.match(await page.textContent('.big-count'), /\/ 12/);
     const html = await page.content();
@@ -255,7 +261,7 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
 {
   const { ctx, page } = await newPage({ viewport: { width: 1280, height: 900 } });
   await step('results: passcode gate, locked while open, then close', async () => {
-    await page.goto(`${BASE}#results`);
+    await page.goto(viewUrl(BASE, 'staff'));
     await page.waitForSelector('#pass');
     await page.screenshot({ path: `${OUT}/14-results-gate.png` });
     await page.fill('#pass', 'demo'); await page.click('button[type=submit]');

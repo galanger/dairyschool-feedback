@@ -50,6 +50,7 @@ const PATHS = {
   download: '<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  star: '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.5 1.2 6.4L12 17.3l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/>',
 };
 
 export function icon(name, cls = '') {

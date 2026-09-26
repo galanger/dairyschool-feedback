@@ -276,6 +276,13 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 .offline-note { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--warn-wash); color: var(--warn-ink); border: 1px solid var(--warn-line); font-size: 14.5px; font-weight: 600; }
 .center .second-lang { font-size: 15px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 12px; }
 .divider { width: 100%; max-width: 320px; border: 0; border-top: 1px solid var(--line); margin: 18px 0 6px; }
+/* thank-you screen: the Google review ask */
+.review { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-sm); padding: 18px 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 6px; }
+.review .stars { display: inline-flex; gap: 3px; color: #f4b400; }
+.review .stars svg { width: 24px; height: 24px; fill: currentColor; stroke: none; }
+.review h2 { font-size: 19px; }
+.review p { font-size: 15px; color: var(--ink-2); max-width: 32ch; }
+.review .btn { width: 100%; margin-top: 6px; min-height: 50px; }
 .loading { display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 24vh; color: var(--ink-2); }
 .loading .spinner { width: 28px; height: 28px; border: 3px solid var(--line-strong); border-right-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; }
 

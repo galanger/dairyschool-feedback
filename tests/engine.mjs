@@ -3,6 +3,16 @@
 import { chromium, webkit, firefox } from 'playwright-core';
 
 export const ENGINE = process.env.ENGINE || 'chrome';
+export const BUNDLE = !!process.env.BUNDLE;
+
+// The deployed site has one page per role; the single-file prototype switches views by hash.
+export function viewUrl(base, view, { s, key } = {}) {
+  const q = s ? `?s=${encodeURIComponent(s)}` : '';
+  if (BUNDLE) return view === 'guide' ? `${base}${q}#guide-${key ?? ''}` : view === 'staff' ? `${base}${q}#results` : `${base}${q}`;
+  if (view === 'guide') return `${base}guide.html${q}#${key ?? ''}`;
+  if (view === 'staff') return `${base}staff.html${q}`;
+  return `${base}${q}`;
+}
 export const isChromium = ENGINE === 'chrome';
 
 export function launch() {

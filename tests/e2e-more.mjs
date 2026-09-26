@@ -1,7 +1,7 @@
 // Second e2e suite: phone Back button, keyboard-only use, blocked storage, slow/busy server,
 // long name lists, draft preview, error screens, language switching, changing name at the end.
 import { devices } from 'playwright-core';
-import { launch, adapt, ENGINE, isChromium } from './engine.mjs';
+import { launch, adapt, ENGINE, isChromium, viewUrl } from './engine.mjs';
 import assert from 'node:assert/strict';
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8765/';
@@ -248,7 +248,7 @@ async function patchState(page, fn) {
 {
   const { ctx, page } = await newPage();
   await step('results on a phone: area chart labels stay readable (≥12px)', async () => {
-    await page.goto(`${BASE}#results`); await page.waitForSelector('#pass');
+    await page.goto(viewUrl(BASE, 'staff')); await page.waitForSelector('#pass');
     await page.fill('#pass', 'demo'); await page.click('button[type=submit]');
     await page.waitForSelector('.rs-head select');
     await page.selectOption('.rs-head select', 'bovicura-2023'); await page.waitForSelector('.kpis');
@@ -310,7 +310,7 @@ async function patchState(page, fn) {
 {
   const { ctx, page } = await newPage();
   await step('guide view opens in English; the full-screen QR speaks both languages', async () => {
-    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.qr-box svg');
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.qr-box svg');
     assert.equal(await page.getAttribute('html', 'lang'), 'en');
     await page.click('button:has-text("Full-screen QR code")'); await page.waitForSelector('.qr-full');
     const t = await page.textContent('.qr-full');
@@ -321,7 +321,7 @@ async function patchState(page, fn) {
 {
   const { ctx, page } = await newPage({ ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } });
   if (isChromium) await step('print: yellow highlights print even with “background graphics” off; other tabs print normally', async () => {
-    await page.goto(`${BASE}#results`); await page.waitForSelector('#pass');
+    await page.goto(viewUrl(BASE, 'staff')); await page.waitForSelector('#pass');
     await page.fill('#pass', 'demo'); await page.click('button[type=submit]'); await page.waitForSelector('.rs-head select');
     await page.selectOption('.rs-head select', 'bovicura-2023'); await page.waitForSelector('.kpis');
     await page.pdf({ path: `${OUT}/print-dashboard.pdf`, format: 'A4', printBackground: false });
@@ -392,7 +392,7 @@ async function patchState(page, fn) {
 {
   const { ctx, page } = await newPage();
   await step('full-screen QR count updates while it is open', async () => {
-    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.qr-box svg');
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.qr-box svg');
     await page.click('button:has-text("Full-screen QR code")'); await page.waitForSelector('.qr-count');
     const before = await page.textContent('.qr-count');
     await page.evaluate(() => { const st = JSON.parse(localStorage.getItem('dsf-demo-v1')); st.seminars.demo.used.n02 = true; st.seminars.demo.used.n03 = true; localStorage.setItem('dsf-demo-v1', JSON.stringify(st)); });
@@ -408,7 +408,7 @@ async function patchState(page, fn) {
   // names on the day (guide page): an extra person, a no-show, a wrong tap
   const { ctx, page } = await newPage();
   await step('guide: adds a name, refuses a passport number; the phone list shows the new person', async () => {
-    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel');
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.onday-panel');
     await page.click('details.onday summary:has-text("Add a name")');
     const inputs = page.locator('.onday-form input');
     await inputs.nth(0).fill('Petrenko'); await inputs.nth(1).fill('Olha'); await inputs.nth(2).fill('Петренко'); await inputs.nth(3).fill('Ольга');
@@ -421,7 +421,7 @@ async function patchState(page, fn) {
     assert.equal(await page.locator('.name-opt', { hasText: 'Petrenko' }).count(), 1, 'the added person can pick their name');
   });
   await step('guide: removes a no-show after a confirmation', async () => {
-    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel');
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.onday-panel');
     await page.click('details.onday summary:has-text("not attending")');
     await page.selectOption('#nm-remove', { label: 'Petrenko Olha' });
     await page.locator('.onday button:has-text("Remove")').first().click();
@@ -433,7 +433,7 @@ async function patchState(page, fn) {
   await step('guide: fixes a wrong tap (the real person is marked as answered, the wrong name is freed)', async () => {
     // Melnyk answered under Bondarenko's name
     await patchState(page, (st) => { st.seminars.demo.used.n01 = true; st.seminars.demo.responses.push({ id: 'r-wrong', answers: { i01: 6 }, comments: {}, open: {} }); });
-    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel'); await settle(page, 400);
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.onday-panel'); await settle(page, 400);
     assert.equal(await page.locator('.missing li', { hasText: 'Bondarenko' }).count(), 0, 'Bondarenko looks answered');
     await page.click('details.onday summary:has-text("wrong name")');
     await page.selectOption('#nm-wrong', { label: 'Bondarenko Andrii' });
@@ -446,7 +446,7 @@ async function patchState(page, fn) {
   });
   await step('guide: nobody is pre-selected, a typed name survives a refresh, a vanished choice resets', async () => {
     await page.goto(BASE); await page.waitForSelector('.hero'); // leave and come back: a freshly mounted guide page
-    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel'); await settle(page, 300);
+    await page.goto(viewUrl(BASE, 'guide', { key: 'demo' })); await page.waitForSelector('.onday-panel'); await settle(page, 300);
     await page.click('details.onday summary:has-text("wrong name")');
     assert.equal(await page.inputValue('#nm-wrong'), '', 'no name chosen by default');
     assert.equal(await page.inputValue('#nm-real'), '', 'no name chosen by default');
@@ -467,7 +467,7 @@ async function patchState(page, fn) {
   // review scenarios: a failed close, a re-render while sending, a second person on the same phone
   const { ctx, page } = await newPage();
   await step('results: when the close request fails, the page looks again instead of getting stuck', async () => {
-    await page.goto(`${BASE}#results`); await page.waitForSelector('#pass');
+    await page.goto(viewUrl(BASE, 'staff')); await page.waitForSelector('#pass');
     await page.fill('#pass', 'demo'); await page.click('.gate button[type=submit]'); await page.waitForSelector('.rs-head');
     await page.selectOption('.rs-head select', 'demo'); await page.waitForSelector('text=The survey is still open');
     await page.click('button:has-text("Close survey…")');

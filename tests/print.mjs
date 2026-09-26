@@ -2,7 +2,7 @@
 import { chromium } from 'playwright-core';
 const browser = await chromium.launch({ channel: 'chrome' });
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
-await page.goto('http://127.0.0.1:8765/#results'); await page.waitForSelector('#pass');
+await page.goto('http://127.0.0.1:8765/staff.html'); await page.waitForSelector('#pass');
 await page.fill('#pass', 'demo'); await page.click('button[type=submit]'); await page.waitForSelector('.rs-head select');
 await page.selectOption('.rs-head select', 'bovicura-2023'); await page.waitForSelector('.kpis');
 await page.click('.tabs button:has-text("Client sheet")'); await page.waitForTimeout(400);

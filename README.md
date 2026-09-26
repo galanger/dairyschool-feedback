@@ -12,8 +12,15 @@ gets the classic results sheet plus an analysis. No names, times or tracking are
 | `backend/Code.gs` | Google Apps Script bound to one Google Sheet | Once-only check, answers, staff passcode, the "Dairy School" menu. |
 | Google Sheet | The school's Google account | `Seminars`, `<id> · Items`, `<id> · Names`, `<id> · Answers`, `<id> · English`. |
 
-Views on the site: `?s=<seminar>` (participant), `?s=<seminar>#guide-<key>` (guide: QR, progress,
-missing names, never scores) and `?s=<seminar>#results` (staff, passcode, unlocked after closing).
+One page per role, so a participant only ever sees the questionnaire:
+
+| Page | Who | What |
+|---|---|---|
+| `/?s=<seminar>` | participants (from the QR) | the questionnaire, thank-you, nothing else |
+| `/guide.html?s=<seminar>#<key>` | the guide | QR, progress, who is missing, on-the-day fixes; never scores |
+| `/staff.html?s=<seminar>` | school staff (passcode) | progress while open, close, then results, client sheet, CSV |
+
+Dairy School → **Get links…** in the Sheet prints all three.
 
 Every item asks for a rating (or "didn't take part") and offers a comment box, as on the paper
 form; comments on items are welcome but optional. The two closing questions ("most valuable part",
@@ -89,8 +96,8 @@ node tests/sim/run.mjs   # real iOS Safari walkthrough on the iPhone simulator (
    name that has not answered) and a wrong tap (mark the real person as answered, free the wrong
    name). Phones pick the change up within 15 seconds. **Fix a wrong name…** in the Sheet menu does
    the same for staff.
-6. **Close survey…** (also possible from `#results`) → names are deleted for good, a dated copy and a
-   CSV backup are made, results unlock on `#results`.
+6. **Close survey…** (also possible from `staff.html`) → names are deleted for good, a dated copy and a
+   CSV backup are made, results unlock on `staff.html`.
 
 ## Rules kept from the paper reports
 

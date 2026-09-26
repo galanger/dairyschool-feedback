@@ -18,7 +18,7 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 // Rating colours: 1–3 low, 4–5 middle, 6–7 top (the same "top" as "gave 6 or 7").
 const band = (i) => (i < 3 ? 'var(--viz-low)' : i < 5 ? 'var(--viz-mid)' : 'var(--viz-high)');
 
-export async function mount(root, { api, seminarId, demo }) {
+export async function mount(root, { api, seminarId, demo, inline = false }) {
   await loadStyles('assets/css/staff.css');
   document.documentElement.lang = 'en';
   document.title = 'Results · Dairy School feedback';
@@ -497,7 +497,7 @@ export async function mount(root, { api, seminarId, demo }) {
           h('label', { for: 'withn' }, withN, 'Show number of answers'),
           h('button', { class: 'btn btn-primary', type: 'button', style: 'flex:0 0 auto;min-height:44px;font-size:15px', onclick: () => { fitSheet(); window.print(); } }, icon('printer'), 'Print or save as PDF')),
         h('p', { class: 'hint' }, 'The same layout as your paper results sheets. Comments are not included, so it is ready to send to the client.'),
-        demo && h('p', { class: 'hint' }, 'The prototype preview may block printing; the live site prints this sheet on one A4 page.'),
+        inline && h('p', { class: 'hint' }, 'The prototype preview may block printing; the live site prints this sheet on one A4 page.'),
         stage);
     }
 
@@ -528,7 +528,7 @@ export async function mount(root, { api, seminarId, demo }) {
               try { await navigator.clipboard.writeText(csv()); status.textContent = 'CSV copied. Paste it into Excel or Google Sheets.'; }
               catch { status.textContent = 'Copy was blocked by the browser.'; }
             } }, icon('copy'), 'Copy CSV')),
-          demo && h('p', { class: 'hint' }, 'The prototype preview blocks file downloads; use Copy CSV here. The live site downloads the file.'),
+          inline && h('p', { class: 'hint' }, 'The prototype preview blocks file downloads; use Copy CSV here. The live site downloads the file.'),
           status),
         h('div', { class: 'panel defs' },
           h('h2', {}, 'Where the answers live'),

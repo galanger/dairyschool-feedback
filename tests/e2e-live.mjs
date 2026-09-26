@@ -1,7 +1,7 @@
 // The production code path: the site's remote API (fetch, text/plain POST, 302 redirects, JSON)
 // against backend/Code.gs served like Google serves it. Two phones = two separate browser contexts.
 import { devices } from 'playwright-core';
-import { launch, adapt, ENGINE, isChromium } from './engine.mjs';
+import { launch, adapt, ENGINE, isChromium, viewUrl } from './engine.mjs';
 import assert from 'node:assert/strict';
 import { startServer, SEM, ADMIN, GUIDE } from './fake-gas-server.mjs';
 
@@ -10,14 +10,14 @@ const GAS = 'http://127.0.0.1:8790';
 const server = await startServer(8790);
 const browser = await launch();
 const results = [];
-const CONFIG = `window.DSF_CONFIG = { backendUrl: '${GAS}/exec', publicUrl: 'https://feedback.example/', defaultSeminar: null };`;
+const CONFIG = `window.DSF_CONFIG = { backendUrl: '${GAS}/exec', publicUrl: 'https://feedback.example/', defaultSeminar: null, reviewUrl: 'https://g.page/r/example/review' };`;
 
 async function phone() {
   // The page's real Content-Security-Policy stays ON (every engine enforces it). The only change:
   // the local stand-in for Google is added to connect-src, next to script.google.com / googleusercontent.com.
   const ctx = await browser.newContext(adapt({ ...devices['Pixel 7'] }));
   await ctx.route('**/config.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: CONFIG }));
-  await ctx.route((url) => url.origin === new URL(BASE).origin && (url.pathname === '/' || url.pathname.endsWith('/index.html')), async (route) => {
+  await ctx.route((url) => url.origin === new URL(BASE).origin && (url.pathname === '/' || url.pathname.endsWith('.html')), async (route) => {
     const res = await route.fetch();
     const body = (await res.text()).replace('https://script.googleusercontent.com;', `https://script.googleusercontent.com ${GAS};`);
     if (!body.includes(GAS)) throw new Error('CSP connect-src not found in index.html');
@@ -77,6 +77,7 @@ await step('live: full answer with a Ukrainian comment reaches the Sheet, withou
   await first.locator('textarea').fill('=1+1 замало практики');
   await finish(A.page, 6);
   await arm(A.page); await A.page.click('#send'); await A.page.waitForSelector('.badge-ok');
+  assert.equal(await A.page.locator('.review a').getAttribute('href'), 'https://g.page/r/example/review', 'review link from the site config');
   const st = await state();
   assert.equal(st.rows.length, 1);
   assert.equal(st.used.length, 1);
@@ -118,17 +119,17 @@ await step('live: the answer arrives but the reply is lost; Try again does not c
 });
 await step('live: guide link shows 4 of 12 and the missing names; a wrong key is refused', async () => {
   const G = await phone();
-  await G.page.goto(`${BASE}?s=${SEM}#guide-${GUIDE}`); await G.page.waitForSelector('.qr-box svg'); await settle(G.page, 600);
+  await G.page.goto(viewUrl(BASE, 'guide', { s: SEM, key: GUIDE })); await G.page.waitForSelector('.qr-box svg'); await settle(G.page, 600);
   assert.match(await G.page.textContent('.big-count'), /4\s*\/ 12/);
   assert.match(await G.page.textContent('main'), /Still to answer · 8/);
   assert.match(await G.page.locator('.link-text').first().textContent(), /https:\/\/feedback\.example\/\?s=uvt-demo-ab12/);
   const W = await phone();
-  await W.page.goto(`${BASE}?s=${SEM}#guide-wrong`); await W.page.waitForSelector('text=isn’t valid');
+  await W.page.goto(viewUrl(BASE, 'guide', { s: SEM, key: 'wrong' })); await W.page.waitForSelector('text=isn’t valid');
   await G.ctx.close(); await W.ctx.close();
 });
 await step('live: on the day, the guide adds a person, removes a no-show and fixes a wrong tap, all over HTTP', async () => {
   const G = await phone();
-  await G.page.goto(`${BASE}?s=${SEM}#guide-${GUIDE}`); await G.page.waitForSelector('.onday-panel'); await settle(G.page, 400);
+  await G.page.goto(viewUrl(BASE, 'guide', { s: SEM, key: GUIDE })); await G.page.waitForSelector('.onday-panel'); await settle(G.page, 400);
   // an extra person joins
   await G.page.click('details.onday summary:has-text("Add a name")');
   const inputs = G.page.locator('.onday-form input');
@@ -171,7 +172,7 @@ await step('live: on the day, the guide adds a person, removes a no-show and fix
 });
 await step('live: results stay locked while open; wrong passcode refused; close unlocks, keeps every answer and backs them up', async () => {
   const R = await phone();
-  await R.page.goto(`${BASE}?s=${SEM}#results`); await R.page.waitForSelector('#pass');
+  await R.page.goto(viewUrl(BASE, 'staff', { s: SEM })); await R.page.waitForSelector('#pass');
   await R.page.fill('#pass', 'wrong-passcode'); await R.page.click('button[type=submit]');
   await R.page.waitForSelector('text=didn’t work');
   await R.page.fill('#pass', ADMIN); await R.page.click('button[type=submit]');
