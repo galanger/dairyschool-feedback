@@ -59,7 +59,9 @@ export function startServer(port = 8790) {
     if (url.pathname === '/__state') {
       const answers = env.book.getSheetByName(`${SEM} · Answers`);
       res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ rows: answers ? answers.data.slice(1) : [], used: [...env.props.keys()].filter((k) => k.startsWith('used:')) }));
+      const names = env.book.getSheetByName(`${SEM} · Names`);
+      return res.end(JSON.stringify({ rows: answers ? answers.data.slice(1) : [], used: [...env.props.keys()].filter((k) => k.startsWith('used:')),
+        names: names ? names.data.slice(1).filter((r) => r.join('')) : [], mail: env.mail.length, tabs: env.book.sheets.map((s) => s.name) }));
     }
     res.writeHead(404); res.end();
   });

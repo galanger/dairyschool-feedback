@@ -126,7 +126,48 @@ await step('live: guide link shows 4 of 12 and the missing names; a wrong key is
   await W.page.goto(`${BASE}?s=${SEM}#guide-wrong`); await W.page.waitForSelector('text=isn’t valid');
   await G.ctx.close(); await W.ctx.close();
 });
-await step('live: results stay locked while open; wrong passcode refused; close unlocks', async () => {
+await step('live: on the day, the guide adds a person, removes a no-show and fixes a wrong tap, all over HTTP', async () => {
+  const G = await phone();
+  await G.page.goto(`${BASE}?s=${SEM}#guide-${GUIDE}`); await G.page.waitForSelector('.onday-panel'); await settle(G.page, 400);
+  // an extra person joins
+  await G.page.click('details.onday summary:has-text("Add a name")');
+  const inputs = G.page.locator('.onday-form input');
+  await inputs.nth(0).fill('Kovalchuk'); await inputs.nth(1).fill('Olha'); await inputs.nth(2).fill('Ковальчук'); await inputs.nth(3).fill('Ольга');
+  await G.page.click('.onday-form button[type=submit]'); await G.page.waitForSelector('text=Added: Kovalchuk Olha'); await settle(G.page, 600);
+  assert.match(await G.page.textContent('.big-count'), /4\s*\/ 13/);
+  assert.equal((await state()).names.length, 13, 'a row was appended to the Names tab');
+  // she answers on her own phone
+  const E = await phone();
+  await begin(E.page, 'Ковальчук'); await finish(E.page, 6);
+  await arm(E.page); await E.page.click('#send'); await E.page.waitForSelector('.badge-ok');
+  assert.equal((await state()).rows.length, 5);
+  // a no-show is removed; people who answered are not offered for removal
+  await G.page.click('details.onday summary:has-text("not attending")');
+  await settle(G.page, 300);
+  assert.equal(await G.page.locator('#nm-remove option', { hasText: 'Melnyk' }).count(), 0);
+  await G.page.selectOption('#nm-remove', { label: 'Lysenko Iryna' });
+  await G.page.locator('.onday button:has-text("Remove")').first().click();
+  await G.page.waitForSelector('text=Remove Lysenko Iryna from the list?');
+  await G.page.click('.confirm .btn-danger'); await G.page.waitForSelector('text=Removed: Lysenko Iryna'); await settle(G.page, 600);
+  assert.match(await G.page.textContent('.big-count'), /5\s*\/ 12/);
+  assert.equal((await state()).names.length, 12, 'the row is gone from the Names tab');
+  // a wrong tap: Bondarenko had answered under Moroz's name
+  await G.page.click('details.onday summary:has-text("wrong name")');
+  await G.page.selectOption('#nm-wrong', { label: 'Moroz Taras' });
+  await G.page.selectOption('#nm-real', { label: 'Bondarenko Andrii' });
+  await G.page.click('.onday button:has-text("Fix")'); await G.page.waitForSelector('text=Done:'); await settle(G.page, 600);
+  const st = await state();
+  assert.ok(st.used.includes(`used:${SEM}:n01`) && !st.used.includes(`used:${SEM}:n06`), 'once-only flags swapped');
+  assert.equal(st.rows.length, 5, 'no answer row was touched');
+  assert.equal(await G.page.locator('.missing li', { hasText: 'Moroz' }).count(), 1, 'Moroz can answer now');
+  const F = await phone();
+  await begin(F.page, 'Мороз'); await finish(F.page, 7);
+  await arm(F.page); await F.page.click('#send'); await F.page.waitForSelector('.badge-ok');
+  assert.equal((await state()).rows.length, 6);
+  assert.deepEqual(G.page.errors, []);
+  await G.ctx.close(); await E.ctx.close(); await F.ctx.close();
+});
+await step('live: results stay locked while open; wrong passcode refused; close unlocks, keeps every answer and backs them up', async () => {
   const R = await phone();
   await R.page.goto(`${BASE}?s=${SEM}#results`); await R.page.waitForSelector('#pass');
   await R.page.fill('#pass', 'wrong-passcode'); await R.page.click('button[type=submit]');
@@ -135,11 +176,16 @@ await step('live: results stay locked while open; wrong passcode refused; close 
   await R.page.waitForSelector('text=still open');
   await R.page.click('button:has-text("Close survey…")'); await R.page.click('.btn-danger');
   await R.page.waitForSelector('.kpis');
-  assert.match(await R.page.textContent('.rs-head'), /4 responses of 12 invited/);
+  assert.match(await R.page.textContent('.rs-head'), /6 responses of 12 invited/);
+  assert.match(await R.page.textContent('.closed-note'), /6 answers kept.*dated copy.*emailed to school@example\.com/s);
   await R.page.click('.tabs button:has-text("Comments")'); await settle(R.page);
   assert.match(await R.page.textContent('main'), /Translation: EN\(=1\+1 замало практики\)/);
   const st = await state();
   assert.equal(st.used.length, 0, 'once-only flags deleted at close');
+  assert.equal(st.rows.length, 6, 'answers untouched by closing');
+  assert.equal(st.mail, 1, 'one CSV backup email at close');
+  assert.ok(st.tabs.some((n) => n.startsWith(`${SEM} · Answers · `)), 'dated copy of the answers tab');
+  assert.equal(st.names.length, 0, 'names deleted at close');
   await R.ctx.close();
 });
 await step('live: after closing, the survey link shows "closed" and sends nothing', async () => {
