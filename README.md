@@ -24,8 +24,9 @@ Dairy School → **Get links…** in the Sheet prints all three.
 
 Every item asks for a rating (or "didn't take part") and offers a comment box, as on the paper
 form; comments on items are welcome but optional. The two closing questions ("most valuable part",
-"what could we do better") are required (the school's decision). "Next" and "Send" refuse until the
-page is complete and show which items are missing; nothing is sent half-done.
+"what could we do better") are required (the school's decision). "Next" lets people move on with
+unrated items (a note offers "Show which" or "Continue anyway") and come back later; the last page
+lists whatever is still missing with one-tap jumps. "Send" needs everything; nothing is sent half-done.
 
 ## Data safety
 

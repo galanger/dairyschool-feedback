@@ -120,12 +120,12 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     // a rating without a comment
     await page.locator('.item').nth(1).locator('.scale label:nth-child(5)').click();
     await page.screenshot({ path: `${OUT}/04-section-answered-360.png`, fullPage: true });
-    // items 3..5 blank: Next is refused with a clear note, no "continue anyway"; item 2 (rated, no comment) is fine
+    // items 3..5 blank: Next shows a note with "Show which" and "Continue anyway"; item 2 (rated, no comment) is fine
     await page.click('.bar-inner .btn-primary');
     await page.waitForSelector('.soft');
-    assert.match(await page.textContent('.soft'), /^3 пункти без оцінки\. /);
+    assert.match(await page.textContent('.soft'), /^3 пункти без оцінки\. Можна йти далі/);
     assert.ok(!/коментар/.test(await page.textContent('.soft')), 'comments on items are not required');
-    assert.equal(await page.locator('.soft button').count(), 1, 'only "Show which"');
+    assert.equal(await page.locator('.soft button').count(), 2, '"Show which" and "Continue anyway"');
     await page.screenshot({ path: `${OUT}/05-soft-prompt-360.png` });
     await page.click('.soft button:has-text("Показати")');
     await settle(page);
@@ -134,6 +134,13 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     // rating a flagged item clears its flag
     await page.locator('.item').nth(2).locator('.scale label:nth-child(6)').click();
     assert.equal(await page.locator('.item.flash').count(), 2);
+    // skip the page with 2 unrated, then come back: the answers so far are kept
+    await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.soft');
+    await page.click('.soft button:has-text("Усе одно далі")'); await page.waitForSelector('.item'); await settle(page);
+    assert.match(await page.textContent('.progress-meta'), /Крок 2 з 5/, 'moved on');
+    await page.click('.bar-inner .btn-secondary'); await page.waitForSelector('.item'); await settle(page);
+    assert.match(await page.textContent('.progress-meta'), /Крок 1 з 5/, 'back on page 1');
+    assert.equal(await page.locator('.item:not(.answered)').count(), 2, 'the two unrated items are still unrated, the rest kept');
     await axe(page, 'section');
   });
   await step('answer the rest, reload mid-way resumes the draft', async () => {

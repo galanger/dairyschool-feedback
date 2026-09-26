@@ -507,16 +507,17 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     return h('section', { class: 'screen' }, children);
   }
 
-  // Every item must be complete before moving on (the school asked for comments on everything):
-  // the note says what is missing and "Show which" takes the person there. Nothing is sent early.
-  function needPrompt(note, missing) {
+  // "Next" with unrated items: a note that offers to show them or to go on (people can come back;
+  // the last page lists whatever is still missing). "Send" offers no way past: everything is needed.
+  function needPrompt(note, missing, onContinue = null) {
     const count = (need, base) => { const n = missing.filter((m) => m.need === need).length; return n ? t.plural(base, n) : null; };
     const lines = [count('rating', 'needRating'), count('open', 'needOpen')].filter(Boolean);
     const onlyOpen = missing.every((m) => m.need === 'open');
     swap(note, h('div', { class: 'soft', role: 'alert' },
-      h('p', {}, h('b', {}, lines.join(' ')), ' ', t(onlyOpen ? 'needOpenHint' : 'needHint')),
+      h('p', {}, h('b', {}, lines.join(' ')), ' ', t(onContinue ? 'needLater' : onlyOpen ? 'needOpenHint' : 'needHint')),
       h('div', { class: 'stack' },
-        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => { closePrompt(note); flash(missing); } }, t('showMe')))));
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => { closePrompt(note); flash(missing); } }, t('showMe')),
+        onContinue && h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { closePrompt(note); onContinue(); } }, t('continueAnyway')))));
     note.hidden = false;
     bar.classList.add('prompting');
   }
@@ -531,8 +532,9 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
   }
   function tryNext(sec, note) {
     const missing = incompleteIn(sec);
-    if (missing.length) return needPrompt(note, missing);
-    S.sectionIndex++; saveDraft(); show('section');
+    const go = () => { S.sectionIndex++; saveDraft(); show('section'); };
+    if (missing.length) return needPrompt(note, missing, go);
+    go();
   }
 
   function finalBlocks() {
@@ -578,10 +580,13 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     return { nodes: [...opens, summary, errorBox], summary };
   }
 
+  // Go back to the page of an unrated item: every unrated item on that page is flagged, so the
+  // person sees at once what is left there, and the requested one is scrolled into view.
   function jumpTo(it, need = 'rating') {
     const idx = sections.findIndex((sec) => sec.items.includes(it));
     if (idx < 0) return;
     S.sectionIndex = idx; saveDraft(); show('section', { focus: false });
+    incompleteIn(sections[idx]).forEach((m) => document.getElementById(`card-${m.it.id}`)?.markMissing?.(m.need));
     const card = document.getElementById(`card-${it.id}`);
     if (card) { card.markMissing?.(need); card.scrollIntoView({ block: 'start' }); softFocus(card.querySelector(need === 'comment' ? 'textarea' : 'input')); }
   }

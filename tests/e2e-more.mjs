@@ -490,6 +490,30 @@ async function patchState(page, fn) {
     assert.match(await page.textContent('#send'), /Send my answers/);
     await page.click('.alert-error button'); await page.waitForSelector('.badge-ok');
   });
+  await step('skip a whole page, finish the rest: Send lists what is missing and jumps back to it', async () => {
+    // same demo state (Kravchenko has answered); a new person, and the remembered English switch cleared
+    await page.evaluate(() => { localStorage.removeItem('dsf:demo:done'); localStorage.removeItem('dsf:lang'); });
+    await start(page, 'Лисенко');
+    // page 1: rate nothing, go on anyway
+    await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.soft');
+    assert.match(await page.textContent('.soft'), /^5 пунктів без оцінки/, 'the optional item does not count');
+    await page.click('.soft button:has-text("Усе одно далі")'); await page.waitForSelector('.item'); await settle(page);
+    for (let k = 0; k < 3; k++) { await rateAll(page, 6); await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.item'); await settle(page, 250); }
+    await rateAll(page, 6); await fillOpen(page);
+    await page.locator('.summary').scrollIntoViewIfNeeded(); await page.waitForSelector('#send');
+    assert.match(await page.textContent('.summary'), /Відповіді: 17 з 22/);
+    assert.equal(await page.locator('.summary li button').count(), 5, 'the five unrated items are listed with jump buttons');
+    await page.click('#send'); await page.waitForSelector('.soft');
+    assert.match(await page.textContent('.soft'), /^5 пунктів без оцінки/);
+    assert.equal(await page.locator('.soft button').count(), 1, 'no way past Send');
+    await page.click('.soft button:has-text("Показати")'); await page.waitForSelector('.item.flash'); await settle(page);
+    assert.match(await page.textContent('.progress-meta'), /Крок 1 з 5/, 'jumped back to page 1');
+    assert.equal(await page.locator('.item.flash').count(), 5);
+    await rateAll(page, 5);
+    for (let k = 0; k < 4; k++) { await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.item'); await settle(page, 250); }
+    assert.equal(await page.locator('.soft').count(), 0, 'complete pages pass without a note');
+    await arm(page); await page.click('#send'); await page.waitForSelector('.badge-ok');
+  });
   await step('a second person on the same phone starts with nobody pre-selected and the first one greyed', async () => {
     await page.click('main .btn-secondary'); await page.waitForSelector('.hero');
     await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.names');

@@ -76,7 +76,7 @@ async function next(page) { await page.click('.bar-inner .btn-primary'); await p
   await shot(page, 'p12b-section1-na', 'Section 1: a "for the ladies" item marked "didn’t take part"');
   await page.locator('.item').nth(1).locator('.scale label:nth-child(5)').click();
   await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.soft');
-  await shot(page, 'p13-soft-prompt', 'Next with 3 unrated items: refused with a note (ratings are required, comments optional)');
+  await shot(page, 'p13-soft-prompt', 'Next with 3 unrated items: a note offers "Show which" or "Continue anyway" (they can come back later)');
   await page.click('.soft button:has-text("Показати")');
   await shot(page, 'p14-show-me', 'After "Show which": the unrated items are flagged');
   await page.click('.lang button:has-text("EN")'); await page.evaluate(() => window.scrollTo(0, 0));
