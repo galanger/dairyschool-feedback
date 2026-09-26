@@ -1,0 +1,68 @@
+// Demo seminar for the prototype: the items of the March 2023 paper form with
+// Ukrainian translations, and invented participant names (no real people).
+
+const I = (no, section, category, en, uk, extra = {}) => ({
+  id: `i${String(no).padStart(2, '0')}`, no, section, category, label: { en, uk }, ...extra,
+});
+
+export const DEMO_SEMINAR = {
+  id: 'demo',
+  title: { en: 'Demo seminar', uk: 'Демо-семінар' },
+  subtitle: { en: 'Dairy farming in Israel', uk: 'Молочне скотарство в Ізраїлі' },
+  dates: { start: '2026-10-04', end: '2026-10-11' },
+  languages: ['uk', 'en'],
+  defaultLang: 'uk',
+  status: 'open',
+  sections: [
+    { id: 's1', title: { en: 'Galilee and the Golan Heights', uk: 'Галілея та Голанські висоти' } },
+    { id: 's2', title: { en: 'Nazareth and the farms', uk: 'Назарет і ферми' } },
+    { id: 's3', title: { en: 'Dead Sea and Jerusalem', uk: 'Мертве море та Єрусалим' } },
+    { id: 's4', title: { en: 'Guides, hotels and food', uk: 'Гіди, готелі та харчування' } },
+    { id: 's5', title: { en: 'Overall', uk: 'Загальна оцінка' } },
+  ],
+  items: [
+    I(1, 's1', 'tour', 'Kibbutz Lavi tour', 'Екскурсія кібуцом Лаві'),
+    I(2, 's1', 'lecture', 'Lectures by Dr. Shalom Cohen', 'Лекції д-ра Шалома Коена'),
+    I(3, 's1', 'tour', 'Sightseeing tour to the Lake of Galilee and the famous churches around the lake (Capernaum National Park)', 'Екскурсія до Галілейського моря та відомих церков навколо нього (національний парк Капернаум)'),
+    I(4, 's1', 'farm', 'Regional feed center in Givat-Yoav (Golan Heights)', 'Регіональний кормовий центр у Гіват-Йоаві (Голанські висоти)'),
+    I(5, 's1', 'farm', 'Family dairy farm in the Golan Heights', 'Сімейна молочна ферма на Голанських висотах'),
+    I(6, 's1', 'partners', 'Experience the authentic Bedouin lifestyle (for the ladies)', 'Знайомство з автентичним побутом бедуїнів (для дам)', { optional: true }),
+    I(7, 's2', 'tour', 'Tour of the old city of Tzipori', 'Екскурсія старим містом Ципорі'),
+    I(8, 's2', 'tour', 'Tour of the famous city of Nazareth', 'Екскурсія до Назарета'),
+    I(9, 's2', 'lecture', 'Lectures by Eyal Frank', 'Лекції Еяля Франка'),
+    I(10, 's2', 'partners', 'Shopping in Merkaza, Nazareth (for the ladies)', 'Шопінг у Мерказі, Назарет (для дам)', { optional: true }),
+    I(11, 's2', 'farm', 'All-day farm visits with Eyal Frank', 'Цілоденні візити на ферми з Еялем Франком'),
+    I(12, 's2', 'partners', 'Sightseeing tour to Rosh HaNikra, the old city of Acre and Haifa (for the ladies)', 'Екскурсія до Рош-га-Нікри, старого міста Акко та Хайфи (для дам)', { optional: true }),
+    I(13, 's3', 'tour', 'Visit to Qasr el Yahud', 'Відвідування Каср-ель-Ягуд'),
+    I(14, 's3', 'tour', 'Visit to Masada National Park', 'Відвідування національного парку Масада'),
+    I(15, 's3', 'tour', 'Swimming in the Dead Sea', 'Купання в Мертвому морі'),
+    I(16, 's3', 'tour', 'Full-day tour of the old and new city of Jerusalem', 'Цілоденна екскурсія старим і новим Єрусалимом'),
+    I(17, 's4', 'guide', 'The Danish-speaking guide, Danial', 'Данськомовний гід Даніал'),
+    I(18, 's4', 'guide', 'The tour guide in Jerusalem, Amy', 'Гід в Єрусалимі — Емі'),
+    I(19, 's4', 'hotel', 'Accommodation: hotel in Kibbutz Lavi', 'Проживання: готель у кібуці Лаві'),
+    I(20, 's4', 'food', 'Food in Kibbutz Lavi', 'Харчування в кібуці Лаві'),
+    I(21, 's4', 'food', 'Dinner in the “Limousine” restaurant', 'Вечеря в ресторані «Limousine»'),
+    I(22, 's4', 'hotel', 'Accommodation: Hotel Leonardo Jerusalem', 'Проживання: готель Leonardo Jerusalem'),
+    I(23, 's4', 'food', 'Food in Hotel Leonardo Jerusalem', 'Харчування в готелі Leonardo Jerusalem'),
+    I(24, 's5', 'overall', 'How strongly would you recommend our seminars to your colleagues?', 'Наскільки ви рекомендували б наші семінари колегам?', { key: 'recommend' }),
+    I(25, 's5', 'overall', 'Overall, how satisfied are you with the seminar?', 'Наскільки ви загалом задоволені семінаром?', { key: 'overall' }),
+  ],
+  openQuestions: [
+    { id: 'q1', label: { en: 'What was the most valuable part of the seminar for you?', uk: 'Що було для вас найціннішим на семінарі?' } },
+    { id: 'q2', label: { en: 'What could we do better?', uk: 'Що ми могли б зробити краще?' } },
+  ],
+  names: [
+    ['n01', 'Bondarenko', 'Andrii', 'Бондаренко', 'Андрій'],
+    ['n02', 'Hnatiuk', 'Olena', 'Гнатюк', 'Олена'],
+    ['n03', 'Kravchenko', 'Oleksandr', 'Кравченко', 'Олександр'],
+    ['n04', 'Lysenko', 'Iryna', 'Лисенко', 'Ірина'],
+    ['n05', 'Melnyk', 'Oleksandr', 'Мельник', 'Олександр'],
+    ['n06', 'Moroz', 'Taras', 'Мороз', 'Тарас'],
+    ['n07', 'Pavlenko', 'Oleksandr', 'Павленко', 'Олександр'],
+    ['n08', 'Savchenko', 'Nataliia', 'Савченко', 'Наталія'],
+    ['n09', 'Shevchuk', 'Bohdan', 'Шевчук', 'Богдан'],
+    ['n10', 'Tkachuk', 'Olha', 'Ткачук', 'Ольга'],
+    ['n11', 'Voloshyn', 'Serhii', 'Волошин', 'Сергій'],
+    ['n12', 'Zinchenko', 'Mariia', 'Зінченко', 'Марія'],
+  ].map(([id, surname, given, surnameCyr, givenCyr]) => ({ id, surname, given, surnameCyr, givenCyr })),
+};

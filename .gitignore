@@ -1,0 +1,8 @@
+node_modules/
+private/
+tests/output/
+.DS_Store
+site/assets/js/*.local.js
+dist/
+tests/atlas/
+tests/sim/shots/

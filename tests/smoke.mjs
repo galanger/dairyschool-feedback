@@ -1,0 +1,21 @@
+// Quick look: loads each view in iPhone-sized Chrome and reports console errors.
+import { chromium, devices } from 'playwright-core';
+const BASE = process.env.BASE || 'http://127.0.0.1:8765/';
+const browser = await chromium.launch({ channel: 'chrome' });
+const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+const page = await ctx.newPage();
+const errors = [];
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('pageerror', (e) => errors.push(String(e)));
+await page.goto(BASE);
+await page.waitForSelector('.hero h1'); await page.waitForTimeout(400);
+await page.screenshot({ path: 'tests/output/smoke-welcome.png', fullPage: true });
+await page.getByRole('button', { name: 'Почати' }).click();
+await page.waitForSelector('.names');
+await page.screenshot({ path: 'tests/output/smoke-names.png', fullPage: true });
+await page.locator('.name-opt').nth(4).click();
+await page.getByRole('button', { name: /Продовжити як/ }).click();
+await page.waitForSelector('.item');
+await page.screenshot({ path: 'tests/output/smoke-section.png', fullPage: false });
+console.log('errors:', errors.length ? errors : 'none');
+await browser.close();
