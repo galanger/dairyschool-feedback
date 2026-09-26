@@ -329,3 +329,83 @@ test('guide can fix a wrong tap: the wrong name is freed, the real person is mar
   assert.equal(post(env, sub('n1', { i01: 5 })).ok, true, 'the real n1 can now answer');
   assert.equal(env.book.getSheetByName(`${S} · Answers`).getLastRow(), 3, 'both answers kept');
 });
+
+// ---------- review findings: backups never collide, translations never block the close ----------
+test('two backups in the same second get distinct tab names; nothing is overwritten', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 }));
+  const a = env.backup_(S, 'first'), b = env.backup_(S, 'second');
+  assert.notEqual(a.snapshot, b.snapshot);
+  assert.ok(env.book.getSheetByName(a.snapshot) && env.book.getSheetByName(b.snapshot));
+  assert.equal(tabNames(env).filter((n) => n.startsWith('Copy of')).length, 0, 'no stray "Copy of" tab');
+});
+
+test('closing backs up first, translates within a budget, and the rest finishes by trigger', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6, i02: 5 }, { comments: { i01: 'Дуже добре', i02: 'Мало часу' }, open: { q1: 'Ферми' } }));
+  post(env, sub('n2', { i01: 7 }, { comments: { i01: 'Чудово' } }));
+  // no time at all for translating inside the close: everything must still be safe
+  const left = env.translateBatch_(S, 0);
+  assert.equal(left, 4, 'four unique texts still to translate');
+  env.scheduleTranslate_(S);
+  assert.equal(env.triggers.length, 1); assert.equal(env.triggers[0].getHandlerFunction(), 'translatePending');
+  env.scheduleTranslate_(S);
+  assert.equal(env.triggers.length, 1, 'one trigger, not one per call');
+  const r = post(env, { action: 'results', s: S, key: 'staff-passcode-123' });
+  assert.equal(r.code, 'LOCKED');
+  env.translatePending();
+  assert.equal(env.triggers.length, 0, 'trigger removed itself');
+  assert.equal(env.props.get(`translate:${S}`), undefined);
+  const closed = post(env, { action: 'status', s: S, key: 'staff-passcode-123', status: 'closed' });
+  assert.equal(closed.ok, true); assert.equal(closed.translationsPending, 0); assert.equal(closed.backup.rows, 2);
+  const res = post(env, { action: 'results', s: S, key: 'staff-passcode-123' });
+  assert.equal(res.translationsPending, 0);
+  assert.equal(res.translations['Дуже добре'], 'EN(Дуже добре)');
+  assert.equal(Object.keys(res.translations).length, 4);
+});
+
+test('a failing translation service never blocks closing or the backup', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 }, { comments: { i01: 'Дуже добре' } }));
+  env.LanguageApp.translate = () => { throw new Error('quota'); };
+  const closed = post(env, { action: 'status', s: S, key: 'staff-passcode-123', status: 'closed' });
+  assert.equal(closed.ok, true);
+  assert.equal(closed.backup.emailedTo, 'school@example.com');
+  assert.equal(closed.translationsPending, 1);
+  assert.equal(env.triggers.length, 1, 'retry scheduled');
+  const res = post(env, { action: 'results', s: S, key: 'staff-passcode-123' });
+  assert.equal(res.ok, true); assert.equal(res.responses.length, 1); assert.equal(res.translationsPending, 1);
+});
+
+// ---------- data never disappears: hourly safety copies, blank rows never count ----------
+test('opening arms an hourly safety copy; it emails only when new answers arrived; closing disarms it', () => {
+  const env = makeEnv(); seed(env);
+  env.book.getSheetByName('Seminars').data[1][9] = 'draft';
+  withUi(env, [S]); env.menuOpen();
+  assert.equal(env.triggers.filter((t) => t.getHandlerFunction() === 'hourlyBackup').length, 1);
+  env.hourlyBackup(); assert.equal(env.mail.length, 0, 'nothing to copy yet');
+  post(env, sub('n1', { i01: 6 }, { comments: { i01: 'Добре' } }));
+  env.hourlyBackup(); assert.equal(env.mail.length, 1, 'one copy for the new answer');
+  assert.match(env.mail[0].subject, /1 answers/); assert.equal(env.mail[0].attachments[0].content.split('\r\n').length, 2);
+  env.hourlyBackup(); assert.equal(env.mail.length, 1, 'no new answers, no new email');
+  post(env, sub('n2', { i01: 7 }));
+  env.hourlyBackup(); assert.equal(env.mail.length, 2);
+  assert.equal(tabNames(env).filter((n) => n.startsWith(`${S} · Answers ·`)).length, 0, 'hourly copies add no tabs');
+  post(env, { action: 'status', s: S, key: 'staff-passcode-123', status: 'closed' });
+  assert.equal(env.mail.length, 3, 'the close makes its own copy');
+  env.hourlyBackup();
+  assert.equal(env.triggers.filter((t) => t.getHandlerFunction() === 'hourlyBackup').length, 0, 'disarmed once nothing is open');
+  assert.equal(env.mail.length, 3);
+});
+
+test('a blank or half-written row never counts as an answer', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 }));
+  const sh = env.book.getSheetByName(`${S} · Answers`);
+  sh.insertRowBefore(2); // an empty row in the middle, as an interrupted insert could leave
+  assert.equal(post(env, { action: 'progress', s: S, key: 'guide-key-1' }).answered, 1);
+  assert.equal(post(env, { action: 'seminars', key: 'staff-passcode-123' }).seminars[0].answered, 1);
+  post(env, { action: 'status', s: S, key: 'staff-passcode-123', status: 'closed' });
+  const r = post(env, { action: 'results', s: S, key: 'staff-passcode-123' });
+  assert.equal(r.responses.length, 1); assert.equal(r.answered, 1);
+});

@@ -197,15 +197,25 @@ function csvCell_(v) {
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-function backup_(id, why) {
+function countAnswers_(sh) {
+  if (!sh || sh.getLastRow() < 2) return 0;
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().filter(function (r) { return r[0] !== '' && r[0] != null; }).length;
+}
+
+// opts.snapshot === false: email only (the hourly safety copies do not add tabs).
+function backup_(id, why, opts) {
   var sh = tab_(id, 'Answers');
-  var rows = sh ? Math.max(0, sh.getLastRow() - 1) : 0;
+  var rows = countAnswers_(sh);
   var out = { rows: rows };
   if (!sh) return out;
-  var stamp = Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd HH.mm');
-  var copy = sh.copyTo(book_()).setName((id + ' · Answers · ' + stamp).slice(0, 100));
-  protect_(copy, 'Backup copy: never edit or delete by hand');
-  out.snapshot = copy.getName();
+  var stamp = Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd HH.mm.ss');
+  if (!(opts && opts.snapshot === false)) {
+    var base = (id + ' · Answers · ' + stamp).slice(0, 90), name = base;
+    for (var k = 2; book_().getSheetByName(name); k++) name = base + ' (' + k + ')'; // never collide, never overwrite
+    var copy = sh.copyTo(book_()).setName(name);
+    protect_(copy, 'Backup copy: never edit or delete by hand');
+    out.snapshot = copy.getName();
+  }
   var to = backupEmail_();
   if (!to) return out;
   try {
@@ -284,7 +294,7 @@ function progress_(id, key) {
   if (!isGuide_(row, key)) return { ok: false, code: 'UNAUTHORIZED' };
   var status = String(row.status).toLowerCase();
   var sh = tab_(id, 'Answers');
-  var answered = sh ? Math.max(0, sh.getLastRow() - 1) : 0;
+  var answered = countAnswers_(sh);
   if (status === 'closed') return { ok: true, status: status, total: Number(row.invited) || answered, answered: answered, missing: [], done: [] };
   var names = names_(id), missing = [], done = [];
   names.forEach(function (n) { (isUsed_(id, n.id) ? done : missing).push(n); });
@@ -355,7 +365,7 @@ function readResponses_(id, cfg) {
   if (!sh || sh.getLastRow() < 2) return [];
   var width = 1 + cfg.items.length * 2 + cfg.openQuestions.length;
   var values = sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues();
-  return values.map(function (r) {
+  return values.filter(function (r) { return r[0] !== '' && r[0] != null; }).map(function (r) {
     var o = { answers: {}, comments: {}, open: {} }, c = 1;
     cfg.items.forEach(function (it) {
       var v = r[c++];
@@ -380,11 +390,14 @@ function results_(id, key) {
   if (!row) return { ok: false, code: 'NOT_FOUND' };
   var cfg = seminarConfig_(row);
   var sh = tab_(id, 'Answers');
-  var answered = sh ? Math.max(0, sh.getLastRow() - 1) : 0;
+  var answered = countAnswers_(sh);
   var invited = String(row.status).toLowerCase() === 'closed' ? Number(row.invited) || null : names_(id).length;
   cfg.names = [];
   if (cfg.status !== 'closed') return { ok: false, code: 'LOCKED', seminar: cfg, invited: invited, answered: answered };
-  return { ok: true, seminar: cfg, invited: invited, answered: answered, responses: readResponses_(id, cfg), translations: translations_(id) };
+  var responses = readResponses_(id, cfg);
+  var translations = translations_(id);
+  var pending = uniqueTexts_(responses).filter(function (t) { return !(t in translations); }).length;
+  return { ok: true, seminar: cfg, invited: invited, answered: answered, responses: responses, translations: translations, translationsPending: pending };
 }
 
 function listSeminars_(key) {
@@ -395,7 +408,7 @@ function listSeminars_(key) {
     var o = {}; SEMINAR_COLS.forEach(function (c, i) { o[c] = r[i]; });
     var sh = tab_(o.id, 'Answers');
     return { id: String(o.id), title: bi_(o.title_en, o.title_uk), dates: { start: isoDate_(o.start), end: isoDate_(o.end) },
-      status: String(o.status || 'draft').toLowerCase(), answered: sh ? Math.max(0, sh.getLastRow() - 1) : 0,
+      status: String(o.status || 'draft').toLowerCase(), answered: countAnswers_(sh),
       invited: String(o.status).toLowerCase() === 'closed' ? Number(o.invited) || null : names_(o.id).length };
   }).reverse() };
 }
@@ -414,13 +427,21 @@ function setStatus_(id, key, status) {
       var names = names_(id);
       sheet.getRange(row._row, col('invited')).setValue(names.length);
       deleteNames_(id, names);
+      props_().deleteProperty('backedUp:' + id);
       sheet.getRange(row._row, col('status')).setValue('closed');
       SpreadsheetApp.flush();
-      translateComments_(id);
-      return { ok: true, status: 'closed', backup: backup_(id, 'survey closed') };
+      // Backups first, always. Translations get a short time budget here and finish in the
+      // background (translatePending), so closing never waits on Google Translate.
+      var backup;
+      try { backup = backup_(id, 'survey closed'); } catch (err) { backup = { error: String((err && err.message) || err) }; }
+      var pending = 0;
+      try { pending = translateBatch_(id, 15000); } catch (err) { pending = -1; }
+      if (pending !== 0) scheduleTranslate_(id);
+      return { ok: true, status: 'closed', backup: backup, translationsPending: pending < 0 ? null : pending };
     }
     if (status === 'open' && !names_(id).length) return { ok: false, code: 'INVALID' };
     sheet.getRange(row._row, col('status')).setValue(status);
+    if (status === 'open') ensureHourlyBackup_();
     return { ok: true, status: status };
   } finally {
     lock.releaseLock();
@@ -434,26 +455,95 @@ function deleteNames_(id, names) {
   if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
 }
 
-// English versions of all comments, written once as plain values (no live formulas).
-function translateComments_(id) {
-  var row = seminarRow_(id);
-  var cfg = seminarConfig_(row);
+// ---------------------------------------------------------------- translations
+// English versions of the comments, written as plain values (no live formulas). Google Translate
+// takes a moment per text and a group writes hundreds, so the work runs within a time budget and
+// the remainder is finished by a background trigger; results show what is ready.
+
+function uniqueTexts_(responses) {
   var texts = {};
-  readResponses_(id, cfg).forEach(function (r) {
+  responses.forEach(function (r) {
     Object.keys(r.comments).forEach(function (k) { texts[r.comments[k]] = true; });
     Object.keys(r.open).forEach(function (k) { texts[r.open[k]] = true; });
   });
-  var list = Object.keys(texts);
-  if (!list.length) return;
-  var sh = tab_(id, 'English') || book_().insertSheet(id + ' · English');
-  sh.clearContents();
-  var out = [['original', 'english']];
-  list.forEach(function (t) {
+  return Object.keys(texts);
+}
+
+// Translates texts that have no translation yet, for at most budgetMs. Returns how many are left.
+function translateBatch_(id, budgetMs) {
+  var row = seminarRow_(id);
+  if (!row) return 0;
+  var cfg = seminarConfig_(row);
+  var have = translations_(id);
+  var todo = uniqueTexts_(readResponses_(id, cfg)).filter(function (t) { return !(t in have); });
+  if (!todo.length) return 0;
+  var sh = tab_(id, 'English');
+  if (!sh) { sh = book_().insertSheet(id + ' · English'); sh.getRange(1, 1, 1, 2).setValues([['original', 'english']]); }
+  var start = Date.now(), out = [];
+  for (var i = 0; i < todo.length && Date.now() - start < budgetMs; i++) {
     var en = '';
-    try { en = LanguageApp.translate(t, '', 'en'); } catch (err) { en = ''; }
-    out.push([asText_(t), asText_(en)]);
-  });
-  sh.getRange(1, 1, out.length, 2).setValues(out);
+    try { en = LanguageApp.translate(todo[i], '', 'en'); } catch (err) { en = ''; }
+    if (en) out.push([asText_(todo[i]), asText_(en)]); // a failed one is simply tried again later
+  }
+  if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, 2).setValues(out);
+  return todo.length - out.length;
+}
+
+// ---------------------------------------------------------------- hourly safety copies
+// While a survey is open, a trigger emails the CSV in every hour that brought new answers, so a
+// copy exists off the Sheet before the survey is even closed. It disarms itself when nothing is open.
+function ensureHourlyBackup_() {
+  var armed = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'hourlyBackup'; });
+  if (!armed) ScriptApp.newTrigger('hourlyBackup').timeBased().everyHours(1).create();
+}
+
+function hourlyBackup() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    var sheet = book_().getSheetByName(SEMINARS);
+    var open = 0;
+    (sheet ? sheet.getDataRange().getValues().slice(1) : []).forEach(function (r) {
+      var o = {}; SEMINAR_COLS.forEach(function (c, i) { o[c] = r[i]; });
+      if (!o.id || String(o.status).toLowerCase() !== 'open') return;
+      open++;
+      var id = String(o.id);
+      var rows = countAnswers_(tab_(id, 'Answers'));
+      if (rows > Number(props_().getProperty('backedUp:' + id) || 0)) {
+        try { backup_(id, 'hourly safety copy', { snapshot: false }); props_().setProperty('backedUp:' + id, String(rows)); } catch (err) { /* next hour */ }
+      }
+    });
+    if (!open) ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'hourlyBackup') ScriptApp.deleteTrigger(t); });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function scheduleTranslate_(id) {
+  props_().setProperty('translate:' + id, '1');
+  var armed = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'translatePending'; });
+  if (!armed) ScriptApp.newTrigger('translatePending').timeBased().after(60 * 1000).create();
+}
+
+// Background trigger: translates what is left, a few minutes at a time, then removes itself.
+function translatePending() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    var left = 0;
+    props_().getKeys().filter(function (k) { return k.indexOf('translate:') === 0; }).forEach(function (k) {
+      var id = k.slice('translate:'.length);
+      var tries = Number(props_().getProperty('translateTries:' + id) || 0) + 1;
+      var pending = 0;
+      try { pending = translateBatch_(id, 200000); } catch (err) { pending = 1; }
+      if (pending > 0 && tries < 8) { props_().setProperty('translateTries:' + id, String(tries)); left += pending; }
+      else { props_().deleteProperty(k); props_().deleteProperty('translateTries:' + id); }
+    });
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'translatePending') ScriptApp.deleteTrigger(t); });
+    if (left > 0) ScriptApp.newTrigger('translatePending').timeBased().after(60 * 1000).create();
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------------------------------------------------------------- Sheet menu
@@ -533,7 +623,8 @@ function menuOpen() {
   var nameErrors = names_(row.id).filter(function (x) { return /\d/.test(x.surname + x.given); });
   if (nameErrors.length) return say_('Some names contain digits (a passport number?). Fix them first: ' + nameErrors.map(function (x) { return x.surname; }).join(', '));
   book_().getSheetByName(SEMINARS).getRange(row._row, SEMINAR_COLS.indexOf('status') + 1).setValue('open');
-  say_('The survey "' + row.id + '" is open for ' + n + ' people.');
+  ensureHourlyBackup_();
+  say_('The survey "' + row.id + '" is open for ' + n + ' people.\n\nWhile it is open, a safety copy of the answers is emailed in every hour that brings new answers.');
 }
 
 function menuClose() {
@@ -558,7 +649,8 @@ function backupText_(b) {
 function menuBackup() {
   var row = pickSeminar_('Back up answers now');
   if (!row) return;
-  say_(backupText_(backup_(row.id, 'manual backup')) || 'Nothing to back up yet.');
+  try { say_(backupText_(backup_(row.id, 'manual backup')) || 'Nothing to back up yet.'); }
+  catch (err) { say_('The backup could not be made: ' + ((err && err.message) || err)); }
 }
 
 function menuBackupEmail() {

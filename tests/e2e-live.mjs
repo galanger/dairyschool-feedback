@@ -132,13 +132,13 @@ await step('live: on the day, the guide adds a person, removes a no-show and fix
   // an extra person joins
   await G.page.click('details.onday summary:has-text("Add a name")');
   const inputs = G.page.locator('.onday-form input');
-  await inputs.nth(0).fill('Kovalchuk'); await inputs.nth(1).fill('Olha'); await inputs.nth(2).fill('Ковальчук'); await inputs.nth(3).fill('Ольга');
-  await G.page.click('.onday-form button[type=submit]'); await G.page.waitForSelector('text=Added: Kovalchuk Olha'); await settle(G.page, 600);
-  assert.match(await G.page.textContent('.big-count'), /4\s*\/ 13/);
+  await inputs.nth(0).fill('Dubrovenko'); await inputs.nth(1).fill('Olha'); await inputs.nth(2).fill('Дубровенко'); await inputs.nth(3).fill('Ольга');
+  await G.page.click('.onday-form button[type=submit]'); await G.page.waitForSelector('text=Added: Dubrovenko Olha');
+  await G.page.waitForSelector('.big-count:has-text("/ 13")');
   assert.equal((await state()).names.length, 13, 'a row was appended to the Names tab');
   // she answers on her own phone
   const E = await phone();
-  await begin(E.page, 'Ковальчук'); await finish(E.page, 6);
+  await begin(E.page, 'Дубровенко'); await finish(E.page, 6);
   await arm(E.page); await E.page.click('#send'); await E.page.waitForSelector('.badge-ok');
   assert.equal((await state()).rows.length, 5);
   // a no-show is removed; people who answered are not offered for removal
@@ -148,14 +148,16 @@ await step('live: on the day, the guide adds a person, removes a no-show and fix
   await G.page.selectOption('#nm-remove', { label: 'Lysenko Iryna' });
   await G.page.locator('.onday button:has-text("Remove")').first().click();
   await G.page.waitForSelector('text=Remove Lysenko Iryna from the list?');
-  await G.page.click('.confirm .btn-danger'); await G.page.waitForSelector('text=Removed: Lysenko Iryna'); await settle(G.page, 600);
-  assert.match(await G.page.textContent('.big-count'), /5\s*\/ 12/);
+  await G.page.click('.confirm:visible .btn-danger'); await G.page.waitForSelector('text=Removed: Lysenko Iryna');
+  await G.page.waitForSelector('.big-count:has-text("/ 12")');
   assert.equal((await state()).names.length, 12, 'the row is gone from the Names tab');
   // a wrong tap: Bondarenko had answered under Moroz's name
   await G.page.click('details.onday summary:has-text("wrong name")');
   await G.page.selectOption('#nm-wrong', { label: 'Moroz Taras' });
   await G.page.selectOption('#nm-real', { label: 'Bondarenko Andrii' });
-  await G.page.click('.onday button:has-text("Fix")'); await G.page.waitForSelector('text=Done:'); await settle(G.page, 600);
+  await G.page.click('.onday button:has-text("Fix")'); await G.page.waitForSelector('text=let Moroz Taras answer again?');
+  await G.page.click('.confirm:visible .btn-danger'); await G.page.waitForSelector('text=Done:');
+  await G.page.waitForSelector('.missing li:has-text("Moroz")');
   const st = await state();
   assert.ok(st.used.includes(`used:${SEM}:n01`) && !st.used.includes(`used:${SEM}:n06`), 'once-only flags swapped');
   assert.equal(st.rows.length, 5, 'no answer row was touched');

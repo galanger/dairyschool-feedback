@@ -137,6 +137,8 @@ const STRINGS = {
     nameInvalid: 'Enter the surname with letters only, no passport numbers.',
     nameErr: 'Couldn’t save. Check the internet connection and try again.',
     nothingYet: 'Nobody yet',
+    choose: 'Choose…',
+    fixConfirm: 'Mark {real} as answered and let {wrong} answer again?',
   },
   uk: {
     langName: 'Українська',
@@ -273,6 +275,8 @@ const STRINGS = {
     nameInvalid: 'Введіть прізвище лише літерами, без номерів паспортів.',
     nameErr: 'Не вдалося зберегти. Перевірте інтернет і спробуйте ще раз.',
     nothingYet: 'Поки нікого',
+    choose: 'Оберіть…',
+    fixConfirm: 'Позначити {real} як «відповіли», а {wrong} дозволити відповісти знову?',
   },
 };
 

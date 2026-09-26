@@ -30,6 +30,20 @@ complete and show which items are missing; nothing is sent half-done.
   by default the account that owns the Sheet). Google also keeps the Sheet's version history.
 - On the phone, answers stay saved until the server confirms; a retry with the same submission id
   can never count twice. The results page has a CSV download for the school's own copy.
+- While a survey is open, a trigger (`hourlyBackup`, armed when the survey is opened) emails the
+  CSV in every hour that brought new answers, so a copy exists off the Sheet before closing.
+- Closing never waits on Google Translate: the backup is made first, translations get 15 seconds
+  inside the close request and the rest is finished by a background trigger (`translatePending`);
+  the Comments tab says when some are still pending.
+- Answers are counted by their submission id, so a blank or half-written row never counts.
+
+## The flow, participant versus school
+
+| Step | Participant | School |
+|---|---|---|
+| Before | – | Create the seminar in the Sheet, paste names, preview, **Open survey** (hourly safety copies start). |
+| During | Scans the QR, picks their name, rates every item with a comment, answers the two closing questions, sends. Sees "Thank you", never any results. Can answer once only. | Guide page: progress, who is missing, add an extra person, remove a no-show, fix a wrong tap. Results page shows progress only. |
+| Finish | A late sender is told the survey is closed. | **Close survey** on the results page (or the Sheet menu): names deleted, dated copy + CSV emailed, results unlock. Then: client results sheet (print/PDF), comments (translations finish in the background), CSV download. |
 
 ## Run locally
 

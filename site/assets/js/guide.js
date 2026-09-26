@@ -69,10 +69,13 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
   // Built once and kept across the 30 s refreshes, so a half-typed name is never wiped.
   let onDay = null;
   const selectOf = (id) => h('select', { id });
+  // Nobody is ever pre-selected: a choice must be made, and a choice that no longer exists
+  // (the person answered meanwhile) goes back to "Choose…" instead of silently becoming someone else.
   function fillSelect(sel, list) {
-    const keep = sel.value;
-    swap(sel, list.length ? list.map((n) => h('option', { value: n.id }, fullName(n)[0])) : h('option', { value: '' }, t('nothingYet')));
-    if (list.some((n) => n.id === keep)) sel.value = keep;
+    const keep = list.some((n) => n.id === sel.value) ? sel.value : '';
+    swap(sel, h('option', { value: '', disabled: true }, list.length ? t('choose') : t('nothingYet')),
+      list.map((n) => h('option', { value: n.id }, fullName(n)[0])));
+    sel.value = keep;
     sel.disabled = !list.length;
   }
   const byId = (list, id) => list.find((n) => n.id === id) || null;
@@ -82,6 +85,7 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
     fillSelect(onDay.rmSel, p.missing || []);
     fillSelect(onDay.wrongSel, p.done || []);
     fillSelect(onDay.realSel, p.missing || []);
+    onDay.syncButtons();
     return onDay.root;
   }
   function buildOnDay() {
@@ -114,33 +118,48 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
       if (!n) return;
       swap(rmConfirm, h('span', {}, t('removeConfirm', { name: fullName(n)[0] })),
         h('button', { class: 'btn btn-danger', type: 'button', onclick: async () => {
-          rmConfirm.hidden = true; rmMsg.textContent = '…';
+          swap(rmConfirm); rmConfirm.hidden = true; rmMsg.textContent = '…';
           const r = await api.removeName(seminarId, key, n.id);
           rmMsg.textContent = r.ok ? t('removed', { name: fullName(n)[0] }) : t('nameErr');
           refresh(false);
         } }, t('remove')),
-        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { rmConfirm.hidden = true; } }, t('cancel')));
+        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { swap(rmConfirm); rmConfirm.hidden = true; } }, t('cancel')));
       rmConfirm.hidden = false;
     } }, t('remove'));
 
-    // 3. a wrong tap
+    // 3. a wrong tap (confirmed first, like a removal)
     const wrongSel = selectOf('nm-wrong'), realSel = selectOf('nm-real');
     const fixMsg = status();
-    const fixBtn = h('button', { class: 'btn btn-secondary', type: 'button', onclick: async () => {
+    const fixConfirm = h('div', { class: 'btn-row left confirm', hidden: true });
+    const fixBtn = h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => {
       const wrong = byId(progress?.done || [], wrongSel.value), real = byId(progress?.missing || [], realSel.value);
       if (!wrong || !real) return;
-      fixMsg.textContent = '…';
-      const r = await api.swapName(seminarId, key, wrong.id, real.id);
-      fixMsg.textContent = r.ok ? t('fixed', { wrong: fullName(wrong)[0], real: fullName(real)[0] }) : t('nameErr');
-      refresh(false);
+      swap(fixConfirm, h('span', {}, t('fixConfirm', { wrong: fullName(wrong)[0], real: fullName(real)[0] })),
+        h('button', { class: 'btn btn-danger', type: 'button', onclick: async () => {
+          swap(fixConfirm); fixConfirm.hidden = true; fixMsg.textContent = '…';
+          const r = await api.swapName(seminarId, key, wrong.id, real.id);
+          fixMsg.textContent = r.ok ? t('fixed', { wrong: fullName(wrong)[0], real: fullName(real)[0] }) : t('nameErr');
+          refresh(false);
+        } }, t('fix')),
+        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { swap(fixConfirm); fixConfirm.hidden = true; } }, t('cancel')));
+      fixConfirm.hidden = false;
     } }, t('fix'));
+
+    // Buttons stay off until a choice is made; a pending confirmation is dropped when the choice changes.
+    const syncButtons = () => {
+      rmBtn.disabled = !rmSel.value;
+      fixBtn.disabled = !(wrongSel.value && realSel.value);
+    };
+    rmSel.addEventListener('change', () => { swap(rmConfirm); rmConfirm.hidden = true; syncButtons(); });
+    wrongSel.addEventListener('change', () => { swap(fixConfirm); fixConfirm.hidden = true; syncButtons(); });
+    realSel.addEventListener('change', () => { swap(fixConfirm); fixConfirm.hidden = true; syncButtons(); });
 
     const root = h('div', { class: 'panel onday-panel' },
       h('h2', {}, t('onDayTitle')), h('p', { class: 'hint' }, t('onDayHint')),
       block('addName', addForm),
       block('notAttending', h('label', { class: 'fld' }, h('span', {}, t('whoNotAttending')), rmSel), h('div', { class: 'btn-row left' }, rmBtn), rmConfirm, rmMsg),
-      block('wrongName', h('label', { class: 'fld' }, h('span', {}, t('wrongPicked')), wrongSel), h('label', { class: 'fld' }, h('span', {}, t('realPerson')), realSel), h('div', { class: 'btn-row left' }, fixBtn), fixMsg));
-    return { root, rmSel, wrongSel, realSel };
+      block('wrongName', h('label', { class: 'fld' }, h('span', {}, t('wrongPicked')), wrongSel), h('label', { class: 'fld' }, h('span', {}, t('realPerson')), realSel), h('div', { class: 'btn-row left' }, fixBtn), fixConfirm, fixMsg));
+    return { root, rmSel, wrongSel, realSel, syncButtons };
   }
 
   function render() {
@@ -175,6 +194,10 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
     const collator = new Intl.Collator(lang === 'uk' ? 'uk' : 'en');
     const sortedMissing = [...missing].sort((a, b) => collator.compare(fullName(a)[0], fullName(b)[0]));
 
+    // The on-the-day panel is kept, not rebuilt, so what the guide is typing survives a refresh.
+    const active = document.activeElement;
+    const keepFocus = onDay && onDay.root.contains(active) ? active : null;
+    const sel = keepFocus && typeof keepFocus.selectionStart === 'number' ? [keepFocus.selectionStart, keepFocus.selectionEnd] : null;
     swap(main, h('section', { class: 'screen guide' },
       h('div', { class: 'title-block' },
         h('span', { class: 'eyebrow' }, t('guideTitle')),
@@ -202,8 +225,14 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
           }))
           : h('p', { class: 'all-done' }, icon('checkCircle'), t('allDone'))),
       !closed && known && onDayPanel()));
+    if (keepFocus && keepFocus.isConnected) {
+      keepFocus.focus({ preventScroll: true });
+      if (sel) { try { keepFocus.setSelectionRange(sel[0], sel[1]); } catch { /* not a text field */ } }
+    }
   }
 
+  // Re-render only when something changed; otherwise just update the "updated … ago" line.
+  let lastSig = null;
   async function refresh(manual) {
     const res = await api.getProgress(seminarId, key);
     if (res.ok) { progress = res; updatedAt = Date.now(); failed = null; } else failed = res.code;
@@ -213,7 +242,9 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
       const uk = makeT('uk'), en = makeT('en');
       count.textContent = `${uk('answeredCount', { a: done, t: progress.total })} · ${en('answeredCount', { a: done, t: progress.total })}`;
     }
-    render();
+    const sig = JSON.stringify([failed, progress?.status, progress?.total, (progress?.missing || []).map((n) => n.id), (progress?.done || []).map((n) => n.id)]);
+    if (manual || sig !== lastSig || !main.querySelector('.guide')) { lastSig = sig; render(); }
+    else { const el = main.querySelector('.ago'); if (el && updatedAt) el.textContent = t('updated', { time: ago() }); }
     if (manual) main.querySelector('.refresh-row button')?.focus();
   }
 

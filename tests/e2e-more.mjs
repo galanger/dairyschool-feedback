@@ -412,8 +412,8 @@ async function patchState(page, fn) {
     await page.click('details.onday summary:has-text("Add a name")');
     const inputs = page.locator('.onday-form input');
     await inputs.nth(0).fill('Petrenko'); await inputs.nth(1).fill('Olha'); await inputs.nth(2).fill('Петренко'); await inputs.nth(3).fill('Ольга');
-    await page.click('.onday-form button[type=submit]'); await page.waitForSelector('text=Added: Petrenko Olha'); await settle(page, 500);
-    assert.match(await page.textContent('.big-count'), /\/ 13/);
+    await page.click('.onday-form button[type=submit]'); await page.waitForSelector('text=Added: Petrenko Olha');
+    await page.waitForSelector('.big-count:has-text("/ 13")');
     assert.equal(await page.locator('.missing li', { hasText: 'Petrenko' }).count(), 1);
     await inputs.nth(0).fill('Ivanenko AB123456'); await page.click('.onday-form button[type=submit]');
     await page.waitForSelector('text=letters only');
@@ -426,8 +426,8 @@ async function patchState(page, fn) {
     await page.selectOption('#nm-remove', { label: 'Petrenko Olha' });
     await page.locator('.onday button:has-text("Remove")').first().click();
     await page.waitForSelector('text=Remove Petrenko Olha from the list?');
-    await page.click('.confirm .btn-danger'); await page.waitForSelector('text=Removed: Petrenko Olha'); await settle(page, 500);
-    assert.match(await page.textContent('.big-count'), /\/ 12/);
+    await page.click('.confirm:visible .btn-danger'); await page.waitForSelector('text=Removed: Petrenko Olha');
+    await page.waitForSelector('.big-count:has-text("/ 12")');
     assert.equal(await page.locator('.missing li', { hasText: 'Petrenko' }).count(), 0);
   });
   await step('guide: fixes a wrong tap (the real person is marked as answered, the wrong name is freed)', async () => {
@@ -438,9 +438,64 @@ async function patchState(page, fn) {
     await page.click('details.onday summary:has-text("wrong name")');
     await page.selectOption('#nm-wrong', { label: 'Bondarenko Andrii' });
     await page.selectOption('#nm-real', { label: 'Melnyk Oleksandr' });
-    await page.click('.onday button:has-text("Fix")'); await page.waitForSelector('text=Done:'); await settle(page, 500);
+    await page.click('.onday button:has-text("Fix")'); await page.waitForSelector('text=let Bondarenko Andrii answer again?');
+    await page.click('.confirm:visible .btn-danger'); await page.waitForSelector('text=Done:');
+    await page.waitForSelector('.missing li:has-text("Bondarenko")');
     assert.equal(await page.locator('.missing li', { hasText: 'Bondarenko' }).count(), 1, 'Bondarenko can answer again');
     assert.equal(await page.locator('.missing li', { hasText: 'Melnyk' }).count(), 0, 'Melnyk is marked as answered');
+  });
+  await step('guide: nobody is pre-selected, a typed name survives a refresh, a vanished choice resets', async () => {
+    await page.goto(BASE); await page.waitForSelector('.hero'); // leave and come back: a freshly mounted guide page
+    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel'); await settle(page, 300);
+    await page.click('details.onday summary:has-text("wrong name")');
+    assert.equal(await page.inputValue('#nm-wrong'), '', 'no name chosen by default');
+    assert.equal(await page.inputValue('#nm-real'), '', 'no name chosen by default');
+    assert.ok(await page.locator('.onday button:has-text("Fix")').first().isDisabled(), 'Fix off until both are chosen');
+    await page.click('details.onday summary:has-text("Add a name")');
+    await page.locator('.onday-form input').first().fill('Zorianenko');
+    await page.selectOption('#nm-real', { label: 'Hnatiuk Olena' });
+    // Hnatiuk answers meanwhile; the page refreshes (as it does every 30 s)
+    await page.evaluate(() => { const st = JSON.parse(localStorage.getItem('dsf-demo-v1')); st.seminars.demo.used.n02 = true; localStorage.setItem('dsf-demo-v1', JSON.stringify(st)); });
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await settle(page, 900);
+    assert.equal(await page.locator('.onday-form input').first().inputValue(), 'Zorianenko', 'typing kept across the refresh');
+    assert.equal(await page.evaluate(() => document.activeElement?.value), 'Zorianenko', 'focus kept across the refresh');
+    assert.equal(await page.inputValue('#nm-real'), '', 'the vanished choice went back to "Choose…", not to someone else');
+  });
+  await ctx.close();
+}
+{
+  // review scenarios: a failed close, a re-render while sending, a second person on the same phone
+  const { ctx, page } = await newPage();
+  await step('results: when the close request fails, the page looks again instead of getting stuck', async () => {
+    await page.goto(`${BASE}#results`); await page.waitForSelector('#pass');
+    await page.fill('#pass', 'demo'); await page.click('.gate button[type=submit]'); await page.waitForSelector('.rs-head');
+    await page.selectOption('.rs-head select', 'demo'); await page.waitForSelector('text=The survey is still open');
+    await page.click('button:has-text("Close survey…")');
+    await page.evaluate(() => { window.__dsfMock.failNext = 1; });
+    await page.click('.btn-danger');
+    await page.waitForSelector('button:has-text("Close survey…")'); // still open, panel back, button usable
+    assert.ok(!(await page.locator('button:has-text("Close survey…")').isDisabled()));
+    await page.click('button:has-text("Close survey…")'); await page.click('.btn-danger');
+    await page.waitForSelector('.closed-note');
+  });
+  await step('a language switch while sending, then a failure, leaves Send usable and Try again works', async () => {
+    await page.evaluate(() => { localStorage.removeItem('dsf-demo-v1'); }); // fresh demo (the seminar above is closed)
+    await start(page, 'Кравченко'); await toLast(page); await rateAll(page, 6);
+    await page.evaluate(() => { window.__dsfMock.slowNext = 1; window.__dsfMock.failNext = 1; });
+    await arm(page); await page.click('#send'); await settle(page, 600);
+    await page.click('.lang button:has-text("EN")'); await settle(page, 300);
+    assert.match(await page.textContent('#send'), /Sending/);
+    await page.waitForSelector('.alert-error', { timeout: 15000 });
+    assert.ok(!(await page.locator('#send').isDisabled()), 'Send is usable again');
+    assert.match(await page.textContent('#send'), /Send my answers/);
+    await page.click('.alert-error button'); await page.waitForSelector('.badge-ok');
+  });
+  await step('a second person on the same phone starts with nobody pre-selected and the first one greyed', async () => {
+    await page.click('main .btn-secondary'); await page.waitForSelector('.hero');
+    await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.names');
+    assert.equal(await page.locator('.name-opt.is-selected').count(), 0);
+    assert.ok(await page.locator('.name-opt', { hasText: 'Kravchenko' }).evaluate((el) => el.classList.contains('is-done')));
+    assert.ok(await page.locator('.bar-inner .btn-primary').isDisabled());
   });
   await ctx.close();
 }

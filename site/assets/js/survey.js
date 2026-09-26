@@ -134,6 +134,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
   }
   function newDraft(nameId = null) {
     S.draft = { nameId, answers: {}, comments: {}, open: {}, submissionId: uuid(), sectionIndex: 0 };
+    S.pendingName = null;
     S.sawEnd = false;
     S.sectionIndex = 0;
   }
@@ -636,7 +637,9 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     const errBox = document.getElementById('send-error'); errBox?.replaceChildren();
     setSending(btn, true);
     clearTimeout(slowTimer);
-    slowTimer = setTimeout(() => { swap(note, h('div', { class: 'soft', role: 'status' }, h('p', {}, t('slow')))); note.hidden = false; }, 6000);
+    // The page may re-render while sending (language switch, Back): always talk to the live bar.
+    const liveNote = () => bar.querySelector('.bar-note') || note;
+    slowTimer = setTimeout(() => { const n = liveNote(); swap(n, h('div', { class: 'soft', role: 'status' }, h('p', {}, t('slow')))); n.hidden = false; }, 6000);
     const d = S.draft;
     const payload = {
       s: seminarId, nameId: d.nameId, submissionId: d.submissionId,
@@ -648,9 +651,11 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
       await new Promise((r) => setTimeout(r, 1500 + Math.random() * 2000));
       res = await api.submit(payload);
     }
-    clearTimeout(slowTimer); note.hidden = true;
+    clearTimeout(slowTimer); liveNote().hidden = true;
     S.sending = false;
     if (res.ok) {
+      const who = person();
+      if (who) who.answered = true; // greyed out at once if someone else uses this phone next
       store.set(K.done, true);
       store.del(K.draft);
       store.del(K.cfg);
@@ -660,7 +665,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     }
     if (res.code === 'CLOSED') { S.closedWhileSending = true; return show('closed'); }
     S.error = res.code;
-    setSending(btn, false);
+    setSending(document.getElementById('send') || btn, false);
     const box = document.getElementById('send-error');
     if (box) { swap(box, errorAlert(res.code)); box.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); }
   }

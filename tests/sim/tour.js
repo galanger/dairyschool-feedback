@@ -18,13 +18,18 @@
     const active = document.activeElement;
     if (active && active !== document.body && !el.contains(active)) { active.blur(); await sleep(400); }
     if (el.closest('[hidden]') || !el.getClientRects().length) throw new Error('target is hidden');
-    el.scrollIntoView({ block: 'center' });
-    await sleep(250);
-    const r = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    if (!hit || !(el.contains(hit) || hit.contains(el) || hit.closest('label') === el)) {
-      throw new Error(`something else is under the finger: ${hit?.outerHTML.slice(0, 80)}`);
+    // Scroll, let the screen settle, then hit-test; try a few times, as a finger would adjust.
+    let hit = null, last = null;
+    for (let i = 0; i < 6 && !hit; i++) {
+      el.scrollIntoView({ block: 'center' });
+      await sleep(i ? 400 : 250);
+      const r = el.getBoundingClientRect();
+      const x = Math.min(Math.max(r.left + r.width / 2, 1), window.innerWidth - 1);
+      const y = Math.min(Math.max(r.top + r.height / 2, 1), window.innerHeight - 1);
+      last = document.elementFromPoint(x, y);
+      if (last && (el.contains(last) || last.contains(el) || last.closest('label') === el)) hit = last;
     }
+    if (!hit) throw new Error(`something else is under the finger: ${last ? last.outerHTML.slice(0, 80) : 'nothing'}`);
     hit.click();
   }
   const ops = {

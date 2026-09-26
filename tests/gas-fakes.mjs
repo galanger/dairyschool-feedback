@@ -42,7 +42,7 @@ export class FakeSheet {
     this.data[r - 1][c - 1] = v;
   }
   getName() { return this.name; }
-  setName(n) { this.name = n; return this; }
+  setName(n) { if (this.book && this.book.sheets.some((s) => s !== this && s.name === n)) throw new Error(`A sheet named "${n}" already exists`); this.name = n; return this; }
   getLastRow() { let n = this.data.length; while (n && this.data[n - 1].every((v) => v === '' || v == null)) n--; return n; }
   getLastColumn() { return Math.max(0, ...this.data.map((r) => r.length)); }
   getRange(r, c, nr = 1, nc = 1) { return new FakeRange(this, r, c, nr, nc); }
@@ -52,13 +52,13 @@ export class FakeSheet {
   appendRow(v) { this.data.splice(this.getLastRow(), 0, [...v]); }
   setFrozenRows() {}
   clearContents() { this.data = []; }
-  copyTo(book) { const s = new FakeSheet(`Copy of ${this.name}`, this.data); book.sheets.push(s); return s; }
+  copyTo(book) { const s = new FakeSheet(`Copy of ${this.name}`, this.data); s.book = book; book.sheets.push(s); return s; }
   protect() { const sheet = this; return { setDescription(d) { sheet.protection = d; return this; }, setWarningOnly(w) { sheet.warningOnly = w; return this; } }; }
 }
 export class FakeBook {
   constructor() { this.sheets = []; }
   getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; }
-  insertSheet(n) { const s = new FakeSheet(n); this.sheets.push(s); return s; }
+  insertSheet(n) { const s = new FakeSheet(n); s.book = this; this.sheets.push(s); return s; }
   getSpreadsheetTimeZone() { return 'Asia/Jerusalem'; }
 }
 
@@ -66,9 +66,15 @@ export function makeEnv({ random } = {}) {
   const book = new FakeBook();
   const props = new Map();
   const mail = [];
+  const triggers = [];
   let locked = false;
   const env = {
-    book, props, mail,
+    book, props, mail, triggers,
+    ScriptApp: {
+      getProjectTriggers: () => [...triggers],
+      deleteTrigger: (t) => { const i = triggers.indexOf(t); if (i >= 0) triggers.splice(i, 1); },
+      newTrigger: (fn) => { const create = (how) => () => { const t = { getHandlerFunction: () => fn, how }; triggers.push(t); return t; }; return { timeBased: () => ({ after: (ms) => ({ create: create({ after: ms }) }), everyHours: (h) => ({ create: create({ everyHours: h }) }) }) }; },
+    },
     MailApp: { sendEmail: (m) => { mail.push(m); } },
     Session: { getEffectiveUser: () => ({ getEmail: () => 'school@example.com' }) },
     SpreadsheetApp: { getActiveSpreadsheet: () => book, flush() {} },
@@ -76,6 +82,7 @@ export function makeEnv({ random } = {}) {
       getProperty: (k) => (props.has(k) ? props.get(k) : null),
       setProperty: (k, v) => { props.set(k, String(v)); },
       deleteProperty: (k) => { props.delete(k); },
+      getKeys: () => [...props.keys()],
     }) },
     LockService: { getScriptLock: () => ({
       tryLock: () => { if (locked) return false; locked = true; return true; },
@@ -88,7 +95,9 @@ export function makeEnv({ random } = {}) {
       newBlob: (content, type, name) => ({ content, type, name }),
       formatDate: (d, tz, fmt) => {
         const day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-        return fmt && fmt.includes('HH') ? `${day} 12.00` : day;
+        if (!fmt || !fmt.includes('HH')) return day;
+        const time = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(/:/g, '.');
+        return `${day} ${fmt.includes('ss') ? time : time.slice(0, 5)}`;
       },
     },
     LanguageApp: { translate: (t) => (/[а-яіїєґ]/i.test(t) ? `EN(${t})` : t) },

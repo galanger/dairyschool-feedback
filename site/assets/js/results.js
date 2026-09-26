@@ -120,10 +120,15 @@ export async function mount(root, { api, seminarId, demo }) {
         'Nobody can answer after this, and the list of names is deleted for good, so it can’t be reopened. Answers stay, without names, and a backup copy is emailed to the school.'),
       h('div', { class: 'row' },
         h('button', { class: 'btn btn-danger', type: 'button', onclick: async (e) => {
-          e.currentTarget.disabled = true;
+          const btn = e.currentTarget; // (currentTarget is null after the await)
+          btn.disabled = true;
           const r = await api.setStatus(current, key, 'closed');
-          if (r.ok) { justClosed = r.backup || {}; const l = await api.listSeminars(key); if (l.ok) seminars = l.seminars; showSeminar(current); }
-          else { e.currentTarget.disabled = false; confirmBox.append(h('p', { class: 'err' }, 'Couldn’t close the survey. Try again.')); }
+          if (r.ok) { justClosed = r.backup || {}; const l = await api.listSeminars(key); if (l.ok) seminars = l.seminars; showSeminar(current); return; }
+          // No reply, or the server was busy: the close may still have gone through, so look again
+          // instead of guessing (the page then shows either the dashboard or this panel again).
+          if (['TIMEOUT', 'NETWORK', 'BUSY'].includes(r.code)) { showSeminar(current); return; }
+          btn.disabled = false;
+          confirmBox.append(h('p', { class: 'err' }, 'Couldn’t close the survey. Try again.'));
         } }, 'Close survey'),
         h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { confirmBox.hidden = true; openBtn.hidden = false; } }, 'Cancel')));
     const openBtn = h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { confirmBox.hidden = false; openBtn.hidden = true; } }, icon('lock'), 'Close survey…');
@@ -166,7 +171,9 @@ export async function mount(root, { api, seminarId, demo }) {
       if (b.emailedTo) parts.push(`A CSV copy was emailed to ${b.emailedTo}.`);
       else if (demo) parts.push('On the live system a CSV copy is also emailed to the school.');
       else if (b.emailError) parts.push('The backup email could not be sent; download the CSV from the Data tab.');
-      return h('div', { class: 'panel closed-note', role: 'status' }, h('p', {}, icon('checkCircle'), h('span', {}, parts.join(' '))));
+      return h('div', { class: 'panel closed-note', role: 'status' },
+        h('p', {}, icon('checkCircle'), h('span', {}, parts.join(' '))),
+        h('p', { class: 'next' }, 'Next: print or save the client results sheet (button above), read the comments, and download the CSV in the Data tab as your own copy.'));
     }
 
     if (!A.responses) {
@@ -420,8 +427,11 @@ export async function mount(root, { api, seminarId, demo }) {
         ...withC.sort((a, b) => (a.n ? a.mean : 9) - (b.n ? b.mean : 9)).map((it) => h('div', { class: 'cgroup' },
           h('h3', {}, `${it.no}. ${it.label}`, h('span', { class: `score${it.highlight ? ' mark' : ''}` }, it.n ? `${it.score} (${it.pct}%)` : '')), commentList(it.comments))),
       ];
+      const pending = res.translationsPending || 0;
       return groups.length
-        ? h('div', { class: 'panel' }, h('p', { class: 'hint' }, 'Open questions first, then comments on items, lowest score first. Each comment shows how its writer rated the item.'), ...groups)
+        ? h('div', { class: 'panel' }, h('p', { class: 'hint' }, 'Open questions first, then comments on items, lowest score first. Each comment shows how its writer rated the item.'),
+          pending > 0 && h('p', { class: 'hint' }, `English translations for ${plural(pending, 'comment')} are still being prepared in the background. Reload this page in a few minutes.`),
+          ...groups)
         : h('p', { class: 'muted' }, 'No written comments.');
     }
 
@@ -523,7 +533,7 @@ export async function mount(root, { api, seminarId, demo }) {
         h('div', { class: 'panel defs' },
           h('h2', {}, 'Where the answers live'),
           h('p', {}, `In the school’s Google Sheet, tab “${current} · Answers”: one row per response, no names, no times. Nothing in this system ever deletes or overwrites answers; closing the survey removes only the list of names.`),
-          h('p', {}, 'Safety copies: Google keeps the Sheet’s version history; closing the survey adds a dated copy of the answers as a new tab and emails a CSV to the school, and Dairy School → Back up answers now in the Sheet does the same at any time. Download the CSV above as your own copy.')),
+          h('p', {}, 'Safety copies: while the survey is open, a CSV of the answers is emailed to the school in every hour that brings new answers. Closing adds a dated copy of the answers as a new tab and emails the CSV again; Dairy School → Back up answers now in the Sheet does the same at any time. Google also keeps the Sheet’s version history. Download the CSV above as your own copy.')),
         h('div', { class: 'panel defs' },
           h('h2', {}, 'How the numbers are calculated'),
           h('p', {}, 'Score: the average of the 1–7 ratings given. “Didn’t take part” and blanks are counted but left out.'),
