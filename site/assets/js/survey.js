@@ -279,7 +279,8 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     const sorted = [...s.names].sort((a, b) => collator.compare(nameParts(a).join(' '), nameParts(b).join(' ')));
     const free = (id) => id && s.names.some((n) => n.id === id && !n.answered);
     let chosen = free(S.pendingName) ? S.pendingName : free(S.draft?.nameId) ? S.draft.nameId : null;
-    const help = h('p', { class: 'name-help', hidden: true, id: 'name-help' }, t('nameMissingHelp'));
+    const help = h('p', { class: 'name-help', hidden: true, id: 'name-help' }, t('nameMissingHelp'), ' ',
+      h('button', { class: 'linkbtn', type: 'button', onclick: () => refreshNames(true) }, icon('refresh'), t('refreshList')));
     const cont = h('button', { class: 'btn btn-primary', type: 'button', disabled: !chosen }, '');
     // Two intentional lines ("Continue as" / the name) instead of an accidental wrap.
     const setCont = () => {

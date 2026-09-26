@@ -95,6 +95,9 @@ try {
   await step('goto', { url: `${BASE}?s=nope-nope` }); await step('wait', { ms: 800 }, 'invalid-link', 'Invalid link, both languages');
   // ---------- guide ----------
   await step('goto', { url: `${BASE}?s=demo#guide-demo` }); await step('wait', { ms: 1200 }, 'guide', 'Guide view (English)');
+  await step('tap', { sel: 'details.onday summary', text: 'Add a name' });
+  await step('show', { sel: '.onday-panel', block: 'start' }, 'guide-on-day', 'Guide: fixes on the day (extra person, no-show, wrong tap)');
+  await step('top');
   await step('tap', { sel: 'button', text: 'Full-screen QR code' }, 'guide-qr', 'Full-screen QR for the group');
   await step('tap', { sel: '.qr-full .btn' });
   // ---------- staff results on a phone ----------

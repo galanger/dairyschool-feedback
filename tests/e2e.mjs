@@ -31,9 +31,14 @@ async function newPage(device, extra = {}) {
 const settle = (page) => page.waitForTimeout(350);
 
 
+class Skip extends Error {}
+const LIVE = !!process.env.LIVE; // the public site has no private 2023 data
 async function step(name, fn) {
   try { await fn(); results.push(['PASS', name]); }
-  catch (e) { results.push(['FAIL', name, e.message.split('\n').slice(0, 3).join(' | ')]); }
+  catch (e) {
+    if (e instanceof Skip) results.push(['SKIP', name, e.message]);
+    else results.push(['FAIL', name, e.message.split('\n').slice(0, 3).join(' | ')]);
+  }
 }
 async function axe(page, label) {
   await page.waitForTimeout(400); // let transitions finish so contrast is measured on final colours
@@ -262,6 +267,7 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     await page.waitForSelector('text=No answers were received');
   });
   await step('results: the 2023 paper forms reproduce the 2023 sheet in the dashboard', async () => {
+    if (LIVE) throw new Skip('needs the private 2023 data');
     await page.selectOption('.rs-head select', 'bovicura-2023');
     await page.waitForSelector('.kpis'); await settle(page);
     const hero = await page.textContent('.kpi.hero');
@@ -277,6 +283,7 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     await axe(page, 'results');
   });
   await step('results: sheet, categories and comments tabs render', async () => {
+    if (LIVE) throw new Skip('needs the private 2023 data');
     for (const tab of ['Areas', 'Comments', 'Client sheet', 'Data']) {
       await page.click(`.tabs button:has-text("${tab}")`); await settle(page);
       await page.screenshot({ path: `${OUT}/17-tab-${tab.split(' ')[0].toLowerCase()}.png`, fullPage: true });
@@ -326,7 +333,8 @@ for (const [label, opts] of [
 
 await browser.close();
 const width = Math.max(...results.map((r) => r[1].length));
-for (const [s, n, m] of results) console.log(`${s === 'PASS' ? '✔' : '✘'} ${n.padEnd(width)} ${m || ''}`);
+for (const [s, n, m] of results) console.log(`${s === 'PASS' ? '✔' : s === 'SKIP' ? '–' : '✘'} ${n.padEnd(width)} ${m || ''}`);
 const failed = results.filter((r) => r[0] === 'FAIL').length;
-console.log(`\n[${ENGINE}] ${results.length - failed} passed, ${failed} failed`);
+const skipped = results.filter((r) => r[0] === 'SKIP').length;
+console.log(`\n[${ENGINE}] ${results.length - failed - skipped} passed, ${failed} failed${skipped ? `, ${skipped} skipped` : ''}`);
 process.exit(failed ? 1 : 0);

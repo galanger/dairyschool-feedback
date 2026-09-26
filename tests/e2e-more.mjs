@@ -404,6 +404,47 @@ async function patchState(page, fn) {
   await ctx.close();
 }
 
+{
+  // names on the day (guide page): an extra person, a no-show, a wrong tap
+  const { ctx, page } = await newPage();
+  await step('guide: adds a name, refuses a passport number; the phone list shows the new person', async () => {
+    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel');
+    await page.click('details.onday summary:has-text("Add a name")');
+    const inputs = page.locator('.onday-form input');
+    await inputs.nth(0).fill('Petrenko'); await inputs.nth(1).fill('Olha'); await inputs.nth(2).fill('Петренко'); await inputs.nth(3).fill('Ольга');
+    await page.click('.onday-form button[type=submit]'); await page.waitForSelector('text=Added: Petrenko Olha'); await settle(page, 500);
+    assert.match(await page.textContent('.big-count'), /\/ 13/);
+    assert.equal(await page.locator('.missing li', { hasText: 'Petrenko' }).count(), 1);
+    await inputs.nth(0).fill('Ivanenko AB123456'); await page.click('.onday-form button[type=submit]');
+    await page.waitForSelector('text=letters only');
+    await page.goto(BASE); await page.waitForSelector('.hero'); await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.names');
+    assert.equal(await page.locator('.name-opt', { hasText: 'Petrenko' }).count(), 1, 'the added person can pick their name');
+  });
+  await step('guide: removes a no-show after a confirmation', async () => {
+    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel');
+    await page.click('details.onday summary:has-text("not attending")');
+    await page.selectOption('#nm-remove', { label: 'Petrenko Olha' });
+    await page.locator('.onday button:has-text("Remove")').first().click();
+    await page.waitForSelector('text=Remove Petrenko Olha from the list?');
+    await page.click('.confirm .btn-danger'); await page.waitForSelector('text=Removed: Petrenko Olha'); await settle(page, 500);
+    assert.match(await page.textContent('.big-count'), /\/ 12/);
+    assert.equal(await page.locator('.missing li', { hasText: 'Petrenko' }).count(), 0);
+  });
+  await step('guide: fixes a wrong tap (the real person is marked as answered, the wrong name is freed)', async () => {
+    // Melnyk answered under Bondarenko's name
+    await patchState(page, (st) => { st.seminars.demo.used.n01 = true; st.seminars.demo.responses.push({ id: 'r-wrong', answers: { i01: 6 }, comments: {}, open: {} }); });
+    await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.onday-panel'); await settle(page, 400);
+    assert.equal(await page.locator('.missing li', { hasText: 'Bondarenko' }).count(), 0, 'Bondarenko looks answered');
+    await page.click('details.onday summary:has-text("wrong name")');
+    await page.selectOption('#nm-wrong', { label: 'Bondarenko Andrii' });
+    await page.selectOption('#nm-real', { label: 'Melnyk Oleksandr' });
+    await page.click('.onday button:has-text("Fix")'); await page.waitForSelector('text=Done:'); await settle(page, 500);
+    assert.equal(await page.locator('.missing li', { hasText: 'Bondarenko' }).count(), 1, 'Bondarenko can answer again');
+    assert.equal(await page.locator('.missing li', { hasText: 'Melnyk' }).count(), 0, 'Melnyk is marked as answered');
+  });
+  await ctx.close();
+}
+
 await browser.close();
 const w = Math.max(...results.map((r) => r[1].length));
 for (const [st, n, m] of results) console.log(`${st === 'PASS' ? '✔' : '✘'} ${n.padEnd(w)} ${m || ''}`);

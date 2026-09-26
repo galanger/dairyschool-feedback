@@ -44,6 +44,9 @@ function remoteApi(url) {
     getResults: (seminar, key) => call('POST', { action: 'results', s: seminar, key }),
     setStatus: (seminar, key, status) => call('POST', { action: 'status', s: seminar, key, status }),
     listSeminars: (key) => call('POST', { action: 'seminars', key }),
+    addName: (seminar, key, name) => call('POST', { action: 'addName', s: seminar, key, ...name }),
+    removeName: (seminar, key, nameId) => call('POST', { action: 'removeName', s: seminar, key, nameId }),
+    swapName: (seminar, key, wrongId, realId) => call('POST', { action: 'swapName', s: seminar, key, wrongId, realId }),
   };
 }
 
@@ -127,7 +130,43 @@ function mockApi(cfg) {
       if (!staffOk(key)) return { ok: false, code: 'UNAUTHORIZED' };
       const total = s.status === 'closed' ? s.invited : s.names.length;
       const missing = s.names.filter((n) => !s.used[n.id]);
-      return { ok: true, status: s.status, total, answered: s.responses.length, missing };
+      const done = s.names.filter((n) => s.used[n.id]);
+      return { ok: true, status: s.status, total, answered: s.responses.length, missing, done };
+    }),
+
+    // Names on the day (guide or staff, while open): an extra person, a no-show, a wrong tap.
+    addName: (id, key, n) => run((st) => {
+      const s = st.seminars[id];
+      if (!s) return { ok: false, code: 'NOT_FOUND' };
+      if (!staffOk(key)) return { ok: false, code: 'UNAUTHORIZED' };
+      if (s.status === 'closed') return { ok: false, code: 'CLOSED' };
+      const clean = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
+      const name = { id: `a${Math.random().toString(36).slice(2, 10)}`, surname: clean(n.surname), given: clean(n.given), surnameCyr: clean(n.surnameCyr), givenCyr: clean(n.givenCyr) };
+      if (!name.surname || /\d/.test(name.surname + name.given + name.surnameCyr + name.givenCyr)) return { ok: false, code: 'INVALID' };
+      s.names.push(name);
+      return { ok: true, name: { ...name, answered: false } };
+    }),
+    removeName: (id, key, nameId) => run((st) => {
+      const s = st.seminars[id];
+      if (!s) return { ok: false, code: 'NOT_FOUND' };
+      if (!staffOk(key)) return { ok: false, code: 'UNAUTHORIZED' };
+      if (s.status === 'closed') return { ok: false, code: 'CLOSED' };
+      if (s.used[nameId]) return { ok: false, code: 'NAME_TAKEN' };
+      const i = s.names.findIndex((n) => n.id === nameId);
+      if (i < 0) return { ok: false, code: 'NAME_UNKNOWN' };
+      s.names.splice(i, 1);
+      return { ok: true };
+    }),
+    swapName: (id, key, wrongId, realId) => run((st) => {
+      const s = st.seminars[id];
+      if (!s) return { ok: false, code: 'NOT_FOUND' };
+      if (!staffOk(key)) return { ok: false, code: 'UNAUTHORIZED' };
+      if (s.status === 'closed') return { ok: false, code: 'CLOSED' };
+      const has = (x) => s.names.some((n) => n.id === x);
+      if (!has(wrongId) || !has(realId) || wrongId === realId) return { ok: false, code: 'NAME_UNKNOWN' };
+      if (!s.used[wrongId] || s.used[realId]) return { ok: false, code: 'INVALID' };
+      delete s.used[wrongId]; s.used[realId] = true;
+      return { ok: true };
     }),
 
     getResults: (id, key) => run((st) => {

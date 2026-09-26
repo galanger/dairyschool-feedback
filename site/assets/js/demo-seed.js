@@ -5,9 +5,14 @@ import { DEMO_SEMINAR } from './demo-data.js';
 
 export async function buildSeed() {
   const seminars = { demo: { ...DEMO_SEMINAR, used: {}, responses: [] } };
-  try {
-    const m = await import('./demo-2023.local.js');
-    if (m.BOVICURA_2023) seminars[m.BOVICURA_2023.id] = m.BOVICURA_2023;
-  } catch { /* not available on the public site */ }
+  // The 2023 answers exist only on the development machine and inside the private prototype
+  // bundle: the public site never even asks for the file.
+  const local = !!window.DSF_INLINE || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if (local) {
+    try {
+      const m = await import('./demo-2023.local.js');
+      if (m.BOVICURA_2023) seminars[m.BOVICURA_2023.id] = m.BOVICURA_2023;
+    } catch { /* not available */ }
+  }
   return { version: 5, seminars };
 }

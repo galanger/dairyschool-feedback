@@ -24,7 +24,7 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
       h('span', { class: 'logo-chip' }, h('img', { src: 'assets/img/logo.png', alt: 'Dairy School', width: '110', height: '26' })),
       h('div', { class: 'lang', role: 'group', 'aria-label': 'Language / Мова' },
         ['uk', 'en'].map((l) => h('button', { type: 'button', 'aria-pressed': String(l === lang),
-          onclick: () => { lang = l; t = makeT(l); store.set('dsf:guideLang', l); document.documentElement.lang = l; render(); } },
+          onclick: () => { lang = l; t = makeT(l); store.set('dsf:guideLang', l); document.documentElement.lang = l; onDay = null; render(); } },
         l === 'uk' ? 'УКР' : 'EN')))));
   }
 
@@ -63,6 +63,84 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
     document.body.append(overlay);
     softFocus(overlay.querySelector('button'));
     overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+  }
+
+  // ---------- names on the day: an extra person, a no-show, a wrong tap ----------
+  // Built once and kept across the 30 s refreshes, so a half-typed name is never wiped.
+  let onDay = null;
+  const selectOf = (id) => h('select', { id });
+  function fillSelect(sel, list) {
+    const keep = sel.value;
+    swap(sel, list.length ? list.map((n) => h('option', { value: n.id }, fullName(n)[0])) : h('option', { value: '' }, t('nothingYet')));
+    if (list.some((n) => n.id === keep)) sel.value = keep;
+    sel.disabled = !list.length;
+  }
+  const byId = (list, id) => list.find((n) => n.id === id) || null;
+  function onDayPanel() {
+    if (!onDay) onDay = buildOnDay();
+    const p = progress || {};
+    fillSelect(onDay.rmSel, p.missing || []);
+    fillSelect(onDay.wrongSel, p.done || []);
+    fillSelect(onDay.realSel, p.missing || []);
+    return onDay.root;
+  }
+  function buildOnDay() {
+    const field = (key, extra = {}) => h('label', { class: 'fld' }, h('span', {}, t(key)), h('input', { type: 'text', class: 'search', autocomplete: 'off', autocapitalize: 'words', ...extra }));
+    const status = () => h('p', { class: 'onday-msg', role: 'status' });
+    const block = (summaryKey, ...body) => h('details', { class: 'onday' }, h('summary', {}, icon('chevron', 'chev'), t(summaryKey)), h('div', { class: 'onday-body' }, ...body));
+
+    // 1. an extra person
+    const inputs = { surname: field('surname', { required: true }), given: field('given'), surnameCyr: field('surnameCyr', { lang: 'uk' }), givenCyr: field('givenCyr', { lang: 'uk' }) };
+    const addMsg = status();
+    const addForm = h('form', { novalidate: true, class: 'onday-form', onsubmit: async (e) => {
+      e.preventDefault();
+      const val = (k) => inputs[k].querySelector('input').value.trim();
+      const name = { surname: val('surname'), given: val('given'), surnameCyr: val('surnameCyr'), givenCyr: val('givenCyr') };
+      if (!name.surname || /\d/.test(Object.values(name).join(''))) { addMsg.textContent = t('nameInvalid'); return; }
+      addMsg.textContent = '…';
+      const r = await api.addName(seminarId, key, name);
+      if (!r.ok) { addMsg.textContent = r.code === 'INVALID' ? t('nameInvalid') : t('nameErr'); return; }
+      Object.values(inputs).forEach((f) => { f.querySelector('input').value = ''; });
+      addMsg.textContent = t('added', { name: fullName(r.name)[0] });
+      refresh(false);
+    } }, ...Object.values(inputs), h('div', { class: 'btn-row left' }, h('button', { class: 'btn btn-primary', type: 'submit' }, t('add'))), addMsg);
+
+    // 2. a no-show
+    const rmSel = selectOf('nm-remove');
+    const rmMsg = status();
+    const rmConfirm = h('div', { class: 'btn-row left confirm', hidden: true });
+    const rmBtn = h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => {
+      const n = byId(progress?.missing || [], rmSel.value);
+      if (!n) return;
+      swap(rmConfirm, h('span', {}, t('removeConfirm', { name: fullName(n)[0] })),
+        h('button', { class: 'btn btn-danger', type: 'button', onclick: async () => {
+          rmConfirm.hidden = true; rmMsg.textContent = '…';
+          const r = await api.removeName(seminarId, key, n.id);
+          rmMsg.textContent = r.ok ? t('removed', { name: fullName(n)[0] }) : t('nameErr');
+          refresh(false);
+        } }, t('remove')),
+        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { rmConfirm.hidden = true; } }, t('cancel')));
+      rmConfirm.hidden = false;
+    } }, t('remove'));
+
+    // 3. a wrong tap
+    const wrongSel = selectOf('nm-wrong'), realSel = selectOf('nm-real');
+    const fixMsg = status();
+    const fixBtn = h('button', { class: 'btn btn-secondary', type: 'button', onclick: async () => {
+      const wrong = byId(progress?.done || [], wrongSel.value), real = byId(progress?.missing || [], realSel.value);
+      if (!wrong || !real) return;
+      fixMsg.textContent = '…';
+      const r = await api.swapName(seminarId, key, wrong.id, real.id);
+      fixMsg.textContent = r.ok ? t('fixed', { wrong: fullName(wrong)[0], real: fullName(real)[0] }) : t('nameErr');
+      refresh(false);
+    } }, t('fix'));
+
+    const root = h('div', { class: 'panel onday-panel' },
+      h('h2', {}, t('onDayTitle')), h('p', { class: 'hint' }, t('onDayHint')),
+      block('addName', addForm),
+      block('notAttending', h('label', { class: 'fld' }, h('span', {}, t('whoNotAttending')), rmSel), h('div', { class: 'btn-row left' }, rmBtn), rmConfirm, rmMsg),
+      block('wrongName', h('label', { class: 'fld' }, h('span', {}, t('wrongPicked')), wrongSel), h('label', { class: 'fld' }, h('span', {}, t('realPerson')), realSel), h('div', { class: 'btn-row left' }, fixBtn), fixMsg));
+    return { root, rmSel, wrongSel, realSel };
   }
 
   function render() {
@@ -122,7 +200,8 @@ export async function mount(root, { api, seminarId, key, cfg, alive = () => true
             const [a, b] = fullName(n);
             return h('li', {}, h('span', { class: 'name-main' }, a), b && h('span', { class: 'name-alt' }, b));
           }))
-          : h('p', { class: 'all-done' }, icon('checkCircle'), t('allDone')))));
+          : h('p', { class: 'all-done' }, icon('checkCircle'), t('allDone'))),
+      !closed && known && onDayPanel()));
   }
 
   async function refresh(manual) {

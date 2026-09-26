@@ -51,6 +51,9 @@ function doPost(e) {
       case 'results': return results_(p.s, p.key);
       case 'status': return setStatus_(p.s, p.key, p.status);
       case 'seminars': return listSeminars_(p.key);
+      case 'addName': return addName_(p.s, p.key, p);
+      case 'removeName': return removeName_(p.s, p.key, p.nameId);
+      case 'swapName': return swapName_(p.s, p.key, p.wrongId, p.realId);
       default: return { ok: false, code: 'INVALID' };
     }
   });
@@ -282,10 +285,69 @@ function progress_(id, key) {
   var status = String(row.status).toLowerCase();
   var sh = tab_(id, 'Answers');
   var answered = sh ? Math.max(0, sh.getLastRow() - 1) : 0;
-  if (status === 'closed') return { ok: true, status: status, total: Number(row.invited) || answered, answered: answered, missing: [] };
-  var names = names_(id);
-  return { ok: true, status: status, total: names.length, answered: answered,
-    missing: names.filter(function (n) { return !isUsed_(id, n.id); }) };
+  if (status === 'closed') return { ok: true, status: status, total: Number(row.invited) || answered, answered: answered, missing: [], done: [] };
+  var names = names_(id), missing = [], done = [];
+  names.forEach(function (n) { (isUsed_(id, n.id) ? done : missing).push(n); });
+  return { ok: true, status: status, total: names.length, answered: answered, missing: missing, done: done };
+}
+
+// ---------------------------------------------------------------- names on the day
+// An extra person, a no-show, or someone who tapped the wrong name: the guide fixes it from the
+// guide page (guide key or staff passcode) while the survey is open. Phones pick it up within 15 s.
+
+function withNames_(id, key, fn) {
+  var row = seminarRow_(id);
+  if (!row) return { ok: false, code: 'NOT_FOUND' };
+  if (!isGuide_(row, key)) return { ok: false, code: 'UNAUTHORIZED' };
+  var status = String(row.status).toLowerCase();
+  if (status !== 'open' && status !== 'draft') return { ok: false, code: 'CLOSED' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, code: 'BUSY' };
+  try { return fn(row); } finally { lock.releaseLock(); }
+}
+
+function addName_(id, key, p) {
+  return withNames_(id, key, function () {
+    var n = { surname: cleanText_(p.surname, 60), given: cleanText_(p.given, 60),
+      surnameCyr: cleanText_(p.surnameCyr, 60), givenCyr: cleanText_(p.givenCyr, 60) };
+    if (!n.surname) return { ok: false, code: 'INVALID' };
+    if (/\d/.test(n.surname + n.given + n.surnameCyr + n.givenCyr)) return { ok: false, code: 'INVALID' }; // never a passport number
+    var sh = tab_(id, 'Names');
+    if (!sh) {
+      sh = book_().insertSheet(id + ' · Names');
+      sh.getRange(1, 1, 1, NAME_COLS.length).setValues([NAME_COLS]);
+      sh.setFrozenRows(1);
+    }
+    n.id = 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+    sh.appendRow([n.id, n.surname, n.given, n.surnameCyr, n.givenCyr]);
+    n.answered = false;
+    return { ok: true, name: n };
+  });
+}
+
+function removeName_(id, key, nameId) {
+  return withNames_(id, key, function () {
+    if (isUsed_(id, nameId)) return { ok: false, code: 'NAME_TAKEN' }; // already answered: keep
+    var sh = tab_(id, 'Names');
+    if (!sh || sh.getLastRow() < 2) return { ok: false, code: 'NAME_UNKNOWN' };
+    var ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+    for (var r = 1; r < ids.length; r++) {
+      if (String(ids[r][0]) === String(nameId)) { sh.deleteRow(r + 1); return { ok: true }; }
+    }
+    return { ok: false, code: 'NAME_UNKNOWN' };
+  });
+}
+
+function swapName_(id, key, wrongId, realId) {
+  return withNames_(id, key, function () {
+    var names = names_(id);
+    var has = function (x) { return names.some(function (n) { return n.id === x; }); };
+    if (!has(wrongId) || !has(realId) || wrongId === realId) return { ok: false, code: 'NAME_UNKNOWN' };
+    if (!isUsed_(id, wrongId) || isUsed_(id, realId)) return { ok: false, code: 'INVALID' };
+    props_().deleteProperty(usedKey_(id, wrongId));
+    props_().setProperty(usedKey_(id, realId), '1');
+    return { ok: true };
+  });
 }
 
 function readResponses_(id, cfg) {

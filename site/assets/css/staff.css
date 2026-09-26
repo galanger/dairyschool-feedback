@@ -22,6 +22,23 @@
 .missing li { display: flex; flex-direction: column; padding: 10px 0; border-top: 1px solid var(--line); }
 .missing li:first-child { border-top: 0; }
 .all-done { display: flex; align-items: center; gap: 10px; color: var(--green-ink); font-weight: 650; }
+/* names on the day */
+.onday-panel { gap: 6px; }
+.onday-panel > .hint { margin-bottom: 6px; }
+details.onday { border-top: 1px solid var(--line); }
+details.onday summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: 48px; font-weight: 650; cursor: pointer; }
+details.onday summary::-webkit-details-marker { display: none; }
+details.onday summary .chev { transition: transform .2s ease; color: var(--ink-3); }
+details.onday[open] summary .chev { transform: rotate(90deg); }
+.onday-body { display: flex; flex-direction: column; gap: 10px; padding: 2px 0 16px; }
+.onday-form { display: flex; flex-direction: column; gap: 10px; }
+.fld { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.fld .search { font-size: 16px; }
+.onday select { min-height: 48px; border-radius: 12px; border: 1.5px solid var(--line-strong); background: var(--surface); padding: 0 12px; font-size: 16px; width: 100%; }
+.btn-row.left { justify-content: flex-start; }
+.btn-row.confirm { align-items: center; gap: 8px 12px; }
+.onday-msg { font-size: 14.5px; color: var(--ink-2); min-height: 1.4em; }
+.onday-msg:empty { display: none; }
 .qr-full { position: fixed; inset: 0; z-index: 100; background: #fff; color: #0f1f28; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; }
 .qr-full .qr-box { width: min(86vw, 70vh); border: 0; padding: 0; }
 .qr-full h2 { font-size: clamp(22px, 4.4vw, 36px); text-align: center; }

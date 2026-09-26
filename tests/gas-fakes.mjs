@@ -48,6 +48,7 @@ export class FakeSheet {
   getRange(r, c, nr = 1, nc = 1) { return new FakeRange(this, r, c, nr, nc); }
   getDataRange() { return this.getRange(1, 1, Math.max(1, this.getLastRow()), Math.max(1, this.getLastColumn())); }
   insertRowBefore(r) { this.data.splice(r - 1, 0, []); }
+  deleteRow(r) { this.data.splice(r - 1, 1); }
   appendRow(v) { this.data.splice(this.getLastRow(), 0, [...v]); }
   setFrozenRows() {}
   clearContents() { this.data = []; }

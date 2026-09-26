@@ -172,6 +172,9 @@ for (const [name, opts, what] of [
   const { ctx, page } = await ctxPage();
   await page.goto(`${BASE}#guide-demo`); await page.waitForSelector('.qr-box svg');
   await shot(page, 'g01-guide-en', 'Guide view (English by default): QR, progress, who is missing');
+  await page.click('details.onday summary:has-text("Add a name")'); await page.locator('.onday-panel').scrollIntoViewIfNeeded();
+  await shot(page, 'g05-guide-on-day', 'Guide: fixes on the day (add a name, a no-show, a wrong tap)');
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.click('.lang button:has-text("УКР")');
   await shot(page, 'g02-guide-uk', 'Guide view switched to Ukrainian');
   await page.click('.lang button:has-text("EN")');

@@ -57,7 +57,9 @@ node tests/sim/run.mjs   # real iOS Safari walkthrough on the iPhone simulator (
    paste `backend/Code.gs` and `backend/appsscript.json`. Deploy → New deployment → Web app,
    execute as **Me**, access **Anyone**. Copy the `/exec` URL.
 2. **Site.** Put the `/exec` URL in `site/config.js` (`backendUrl`) and the public site address in
-   `publicUrl`. Publish `site/` with GitHub Pages (or copy it to any static host).
+   `publicUrl`. The workflow in `.github/workflows/pages.yml` publishes `site/` to GitHub Pages on
+   every push to `main` (set the Pages source to "GitHub Actions" once:
+   `gh api -X PUT repos/<owner>/<repo>/pages -f build_type=workflow`). Any static host works too.
 3. **First setup.** In the Sheet: reload, then Dairy School → First setup. It creates the tabs and a
    staff passcode. Dairy School → Set survey address (the same `publicUrl`).
 
@@ -68,7 +70,10 @@ node tests/sim/run.mjs   # real iOS Safari walkthrough on the iPhone simulator (
    (names only, never passport numbers).
 3. **Get links…** → open the participant link on a phone to preview (a draft sends nothing).
 4. **Open survey…** → give the guide link to the guide; show the QR.
-5. **Fix a wrong name…** if someone tapped the wrong name.
+5. On the day, the guide page itself handles an extra person (add a name), a no-show (remove a
+   name that has not answered) and a wrong tap (mark the real person as answered, free the wrong
+   name). Phones pick the change up within 15 seconds. **Fix a wrong name…** in the Sheet menu does
+   the same for staff.
 6. **Close survey…** (also possible from `#results`) → names are deleted for good, a dated copy and a
    CSV backup are made, results unlock on `#results`.
 

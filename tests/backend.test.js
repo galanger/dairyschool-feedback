@@ -291,3 +291,41 @@ test('menu: "Back up answers now" emails a copy without closing; backup email ca
   assert.equal(get(env, { action: 'config', s: S }).seminar.status, 'open', 'still open');
   assert.equal(tabNames(env).filter((n) => n.startsWith(`${S} · Answers ·`)).length, 1);
 });
+
+// ---------- names on the day: extra person, no-show, wrong tap (guide key) ----------
+test('guide can add a name while open; digits (a passport number) are refused; closed refuses', () => {
+  const env = makeEnv(); seed(env);
+  const r = post(env, { action: 'addName', s: S, key: 'guide-key-1', surname: 'Zinchenko', given: 'Mariia', surnameCyr: 'Зінченко', givenCyr: 'Марія' });
+  assert.equal(r.ok, true); assert.match(r.name.id, /^a[0-9a-f]{8}$/); assert.equal(r.name.answered, false);
+  const names = get(env, { action: 'config', s: S }).seminar.names;
+  assert.equal(names.length, 4); assert.equal(names[3].surnameCyr, 'Зінченко');
+  assert.equal(post(env, { action: 'addName', s: S, key: 'guide-key-1', surname: 'Zinchenko GL000000' }).code, 'INVALID');
+  assert.equal(post(env, { action: 'addName', s: S, key: 'guide-key-1', surname: '' }).code, 'INVALID');
+  assert.equal(post(env, { action: 'addName', s: S, key: 'nope', surname: 'Zinchenko' }).code, 'UNAUTHORIZED');
+  post(env, { action: 'status', s: S, key: 'staff-passcode-123', status: 'closed' });
+  assert.equal(post(env, { action: 'addName', s: S, key: 'guide-key-1', surname: 'Late' }).code, 'CLOSED');
+});
+
+test('guide can remove a no-show but not someone who answered; the new person can answer at once', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 }));
+  assert.equal(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n1' }).code, 'NAME_TAKEN');
+  assert.equal(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n3' }).ok, true);
+  assert.equal(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n3' }).code, 'NAME_UNKNOWN');
+  const p = post(env, { action: 'progress', s: S, key: 'guide-key-1' });
+  assert.equal(p.total, 2); assert.deepEqual(p.missing.map((n) => n.id), ['n2']); assert.deepEqual(p.done.map((n) => n.id), ['n1']);
+  const added = post(env, { action: 'addName', s: S, key: 'guide-key-1', surname: 'Moroz', given: 'Taras' }).name;
+  assert.equal(post(env, sub(added.id, { i01: 7 })).ok, true, 'the added person can answer');
+  assert.equal(post(env, sub(added.id, { i01: 7 })).code, 'NAME_TAKEN', 'still only once');
+});
+
+test('guide can fix a wrong tap: the wrong name is freed, the real person is marked as answered', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 })); // n3 answered but tapped n1
+  assert.equal(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n2', realId: 'n3' }).code, 'INVALID', 'n2 has not answered');
+  assert.equal(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n1', realId: 'n1' }).code, 'NAME_UNKNOWN');
+  assert.equal(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n1', realId: 'n3' }).ok, true);
+  assert.equal(env.props.get(`used:${S}:n1`), undefined); assert.equal(env.props.get(`used:${S}:n3`), '1');
+  assert.equal(post(env, sub('n1', { i01: 5 })).ok, true, 'the real n1 can now answer');
+  assert.equal(env.book.getSheetByName(`${S} · Answers`).getLastRow(), 3, 'both answers kept');
+});
