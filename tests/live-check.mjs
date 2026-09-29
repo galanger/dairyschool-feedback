@@ -27,7 +27,8 @@ for (const [name, launch] of [['chrome', () => chromium.launch({ channel: 'chrom
     check(await page.locator('main a').count() === 0, `${name}: ${label} page has no links`);
   }
   await page.fill('#pass', PASS); await page.click('button[type=submit]');
-  await page.waitForSelector('.kpis, .big-count', { timeout: 30000 }); // results, or progress while open await page.waitForTimeout(500);
+  await page.waitForSelector('.kpis, .big-count', { timeout: 30000 }); // results, or progress while open
+  await page.waitForTimeout(500);
   const closed = await page.locator('.kpis').count();
   check(true, `${name}: staff page opened (${closed ? 'results' : 'progress while open'})`);
   if (closed) {
