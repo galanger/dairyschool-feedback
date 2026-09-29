@@ -731,5 +731,30 @@ function menuSetup() {
     props_().setProperty('ADMIN_KEY', k);
     msg += '\n\nStaff passcode for the results page:\n' + k + '\n\nKeep it in a safe place. You can change it with Dairy School → Set staff passcode.';
   }
+  // A small open sample seminar with invented names, so the live site can be tried and tested
+  // end to end right away. Close it from the staff page when done; it stays as a reference.
+  if (!seminarRow_('sample')) {
+    var sid = 'sample';
+    var items = tab_('template', 'Items').copyTo(b).setName(sid + ' · Items');
+    items.getRange(2, 6, 4, 2).setValues([
+      ['Lecture: dairy farming in Israel', 'Лекція: молочне скотарство в Ізраїлі'],
+      ['Farm visit: a family dairy farm', 'Відвідування ферми: сімейна молочна ферма'],
+      ['Accommodation: the hotel', 'Проживання: готель'],
+      ['How strongly would you recommend our seminars to your colleagues?', 'Наскільки ви рекомендували б наші семінари колегам?']]);
+    var names = b.insertSheet(sid + ' · Names');
+    names.getRange(1, 1, 4, NAME_COLS.length).setValues([NAME_COLS,
+      ['n01', 'Bondarenko', 'Andrii', 'Бондаренко', 'Андрій'],
+      ['n02', 'Melnyk', 'Oleksandr', 'Мельник', 'Олександр'],
+      ['n03', 'Hnatiuk', 'Olena', 'Гнатюк', 'Олена']]);
+    names.setFrozenRows(1);
+    var today = new Date();
+    b.getSheetByName(SEMINARS).appendRow(SEMINAR_COLS.map(function (c) {
+      return { id: sid, title_en: 'Sample seminar (invented names)', title_uk: 'Пробний семінар (вигадані імена)',
+        subtitle_en: 'For trying the survey', subtitle_uk: 'Щоб спробувати опитування',
+        start: today, end: today, languages: 'uk,en', default_lang: 'uk', status: 'open', guide_key: randomKey_(10), report_name: 'a sample group' }[c] || '';
+    }));
+    ensureHourlyBackup_();
+    msg += '\n\nA sample seminar "sample" is open with three invented names, so the site can be tried right away. Dairy School → Get links shows its links.';
+  }
   say_(msg);
 }

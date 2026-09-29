@@ -6,3 +6,4 @@ site/assets/js/*.local.js
 dist/
 tests/atlas/
 tests/sim/shots/
+backend/.clasp.json

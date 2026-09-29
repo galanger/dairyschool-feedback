@@ -184,9 +184,18 @@ test('menu: first setup creates the tabs and a strong staff passcode once', () =
   const key = env.props.get('ADMIN_KEY');
   assert.match(key, /^[a-z2-9]{6}-[a-z2-9]{6}-[a-z2-9]{6}$/);
   assert.match(said[0], new RegExp(key));
+  // a sample seminar is open right away, with invented names and a guide key
+  assert.ok(tabNames(env).includes('sample · Items') && tabNames(env).includes('sample · Names'));
+  const cfg = env.doGet({ parameter: { action: 'config', s: 'sample' } }).getContent();
+  const sample = JSON.parse(cfg).seminar;
+  assert.equal(sample.status, 'open'); assert.equal(sample.names.length, 3); assert.equal(sample.items.length, 5);
+  assert.equal(sample.items[0].label.en, 'Lecture: dairy farming in Israel');
+  assert.match(said[0], /sample/);
+  assert.equal(env.triggers.filter((t) => t.getHandlerFunction() === 'hourlyBackup').length, 1, 'hourly safety copies armed');
   env.menuSetup(); // running again changes nothing
   assert.equal(env.props.get('ADMIN_KEY'), key);
   assert.equal(tabNames(env).filter((n) => n === 'Seminars').length, 1);
+  assert.equal(tabNames(env).filter((n) => n === 'sample · Items').length, 1);
 });
 
 test('menu: new seminar copies the questions and starts as a draft with a guide key', () => {
@@ -194,7 +203,7 @@ test('menu: new seminar copies the questions and starts as a draft with a guide 
   withUi(env, []); env.menuSetup();
   const said = withUi(env, ['UVT 2026', '']);
   env.menuNewSeminar();
-  const row = env.book.getSheetByName('Seminars').data[1];
+  const row = env.book.getSheetByName('Seminars').data.at(-1); // after the sample seminar that First setup adds
   assert.match(row[0], /^uvt-2026-[a-z2-9]{4}$/, 'readable id with a hard-to-guess suffix');
   assert.equal(row[9], 'draft'); assert.equal(row[7], 'uk,en'); assert.match(row[10], /^[a-z2-9]{10}$/);
   assert.ok(tabNames(env).includes(`${row[0]} · Items`) && tabNames(env).includes(`${row[0]} · Names`));
