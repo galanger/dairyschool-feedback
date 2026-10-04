@@ -201,6 +201,12 @@ function backupEmail_() {
   try { return Session.getEffectiveUser().getEmail() || ''; } catch (err) { return ''; }
 }
 
+// Backup names and emails carry the school's time (the script's zone, Israel), whatever zone the
+// Sheet itself was created with.
+function localZone_() {
+  try { return Session.getScriptTimeZone() || book_().getSpreadsheetTimeZone(); } catch (err) { return book_().getSpreadsheetTimeZone(); }
+}
+
 function csvCell_(v) {
   var s = v == null ? '' : String(v);
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // never a live formula in a spreadsheet that opens the CSV
@@ -218,7 +224,7 @@ function backup_(id, why, opts) {
   var rows = countAnswers_(sh);
   var out = { rows: rows };
   if (!sh) return out;
-  var stamp = Utilities.formatDate(new Date(), book_().getSpreadsheetTimeZone(), 'yyyy-MM-dd HH.mm.ss');
+  var stamp = Utilities.formatDate(new Date(), localZone_(), 'yyyy-MM-dd HH.mm.ss');
   if (!(opts && opts.snapshot === false)) {
     var base = (id + ' · Answers · ' + stamp).slice(0, 90), name = base;
     for (var k = 2; book_().getSheetByName(name); k++) name = base + ' (' + k + ')'; // never collide, never overwrite

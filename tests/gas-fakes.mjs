@@ -59,7 +59,7 @@ export class FakeBook {
   constructor() { this.sheets = []; }
   getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; }
   insertSheet(n) { const s = new FakeSheet(n); s.book = this; this.sheets.push(s); return s; }
-  getSpreadsheetTimeZone() { return 'Asia/Jerusalem'; }
+  getSpreadsheetTimeZone() { return this.tz || 'Asia/Jerusalem'; }
 }
 
 export function makeEnv({ random } = {}) {
@@ -76,7 +76,7 @@ export function makeEnv({ random } = {}) {
       newTrigger: (fn) => { const create = (how) => () => { const t = { getHandlerFunction: () => fn, how }; triggers.push(t); return t; }; return { timeBased: () => ({ after: (ms) => ({ create: create({ after: ms }) }), everyHours: (h) => ({ create: create({ everyHours: h }) }) }) }; },
     },
     MailApp: { sendEmail: (m) => { mail.push(m); } },
-    Session: { getEffectiveUser: () => ({ getEmail: () => 'school@example.com' }) },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'school@example.com' }), getScriptTimeZone: () => 'Asia/Jerusalem' },
     SpreadsheetApp: { getActiveSpreadsheet: () => book, flush() {} },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: (k) => (props.has(k) ? props.get(k) : null),

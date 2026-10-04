@@ -168,6 +168,8 @@ await step('staff: progress while open, close (backup copy + email), results unl
   await S.waitForSelector('.kpis', { timeout: 180000 }); await settle(S, 800);
   closeNote = (await S.textContent('.closed-note')).replace(/\s+/g, ' ');
   assert.match(closeNote, /2 answers kept/); assert.match(closeNote, /dated copy/); assert.match(closeNote, /emailed to /);
+  const israelNow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).format(new Date()).replace(', ', ' ');
+  assert.ok(closeNote.includes(`Answers · ${israelNow}`), `backup tab named in Israel time (${israelNow})`);
   assert.match(await S.textContent('.rs-head'), /2 responses of 3 invited/);
   await shot(S, 's-02-results', true);
 });
@@ -186,7 +188,7 @@ await step('results: every question listed, comments with English translations, 
 await step('client sheet: all questions, prints on one A4 page', async () => {
   await S.click('.tabs button:has-text("Client sheet")'); await settle(S, 800);
   assert.equal(await S.locator('.sheet tbody tr').count(), sem.items.length);
-  assert.match(await S.textContent('.sheet'), /UVT Ukraine/);
+  assert.match(await S.textContent('.sheet'), new RegExp(`Satisfaction results for ${sem.reportName.en}`));
   await shot(S, 's-05-client-sheet', true);
   await S.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
   await S.pdf({ path: `${OUT}/client-sheet.pdf`, format: 'A4', printBackground: false, preferCSSPageSize: true });

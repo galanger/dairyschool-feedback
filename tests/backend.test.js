@@ -583,3 +583,18 @@ test('a lost reply: Google re-sends the request as an empty GET; the backend say
   assert.equal(post(env, { action: 'status', s: S, key: STAFF, status: 'closed' }).ok, true);
   assert.equal(env.mail.length, 1, 'one backup email');
 });
+
+test('backup copies are named in Israel time even when the Sheet was created in another time zone', () => {
+  const env = makeEnv(); seed(env);
+  env.book.tz = 'America/Los_Angeles'; // as the live Sheet turned out to be
+  post(env, sub('n1', { i01: 6 }));
+  const israel = () => env.Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd HH.mm');
+  const before = israel();
+  const r = post(env, { action: 'status', s: S, key: STAFF, status: 'closed' });
+  const after = israel();
+  const stamp = r.backup.snapshot.split(' · Answers · ')[1].slice(0, 16);
+  assert.ok(stamp === before || stamp === after, `${stamp} is Israel time (${before})`);
+  assert.ok(env.mail[0].subject.includes(stamp));
+  // the seminar's own dates are still read in the Sheet's zone (Sheets keeps dates at its local midnight)
+  assert.deepEqual(get(env, { action: 'config', s: S }).seminar.dates.start.length, 10);
+});
