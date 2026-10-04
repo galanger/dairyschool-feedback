@@ -182,6 +182,7 @@ function mockApi(cfg) {
       const s = st.seminars[id];
       if (!s) return { ok: false, code: 'NOT_FOUND' };
       if (!staffOk(key)) return { ok: false, code: 'UNAUTHORIZED' };
+      if (s.status === 'closed' && status !== 'closed') return { ok: false, code: 'CLOSED' }; // never reopened
       let backup = null;
       if (status === 'closed' && s.status !== 'closed') {
         s.invited = s.names.length;

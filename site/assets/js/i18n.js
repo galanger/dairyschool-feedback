@@ -140,6 +140,16 @@ const STRINGS = {
     nothingYet: 'Nobody yet',
     choose: 'Choose…',
     fixConfirm: 'Mark {real} as answered and let {wrong} answer again?',
+    // a survey that is still a draft
+    previewFlag: 'Preview: the survey is not open yet, so answers are not sent.',
+    previewSendTitle: 'Not sent yet.',
+    previewSendText: 'The survey isn’t open yet. Your answers are saved on this phone: tap Send again once it is open.',
+    guideDraft: 'The survey is not open yet.',
+    guideDraftHint: 'Open it when the group is ready to answer. The QR code and the link appear here once it is open.',
+    openNow: 'Open the survey now',
+    openConfirm: 'Open it now? From then on, everyone with the link can answer.',
+    open: 'Open',
+    openErr: 'Couldn’t open the survey. Check the internet connection and try again.',
   },
   uk: {
     langName: 'Українська',
@@ -278,6 +288,15 @@ const STRINGS = {
     nothingYet: 'Поки нікого',
     choose: 'Оберіть…',
     fixConfirm: 'Позначити {real} як «відповіли», а {wrong} дозволити відповісти знову?',
+    previewFlag: 'Попередній перегляд: опитування ще не відкрите, тому відповіді не надсилаються.',
+    previewSendTitle: 'Ще не надіслано.',
+    previewSendText: 'Опитування ще не відкрите. Ваші відповіді збережено на цьому телефоні: натисніть «Надіслати відповіді» ще раз, коли його відкриють.',
+    guideDraft: 'Опитування ще не відкрите.',
+    guideDraftHint: 'Відкрийте його, коли група буде готова відповідати. QR-код і посилання з’являться тут, щойно опитування відкриється.',
+    openNow: 'Відкрити опитування зараз',
+    openConfirm: 'Відкрити зараз? Відтоді кожен, хто має посилання, зможе відповісти.',
+    open: 'Відкрити',
+    openErr: 'Не вдалося відкрити опитування. Перевірте інтернет і спробуйте ще раз.',
   },
 };
 

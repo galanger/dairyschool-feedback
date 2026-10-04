@@ -4,6 +4,7 @@ import { devices } from 'playwright-core';
 import { launch, adapt, ENGINE, isChromium, viewUrl } from './engine.mjs';
 import assert from 'node:assert/strict';
 import { startServer, SEM, ADMIN, GUIDE } from './fake-gas-server.mjs';
+import { DEMO_SEMINAR } from '../site/assets/js/demo-data.js';
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8765/';
 const GAS = 'http://127.0.0.1:8790';
@@ -35,7 +36,27 @@ async function step(name, fn) {
 const settle = (p, ms = 300) => p.waitForTimeout(ms);
 
 
-const state = async () => (await fetch(`${GAS}/__state`)).json();
+const state = async (id = SEM) => (await fetch(`${GAS}/__state?s=${id}`)).json();
+// What tools/save-draft.mjs sends: a new draft with a few of the demo questions and two invented names.
+async function saveDraft(base) {
+  const sec = Object.fromEntries(DEMO_SEMINAR.sections.map((x) => [x.id, x.title]));
+  const items = DEMO_SEMINAR.items.filter((it) => ['i01', 'i02', 'i24', 'i25'].includes(it.id)).map((it) => ({
+    section_en: sec[it.section].en, section_uk: sec[it.section].uk, category: it.category, label_en: it.label.en, label_uk: it.label.uk, key: it.key }));
+  const body = { action: 'saveDraft', key: ADMIN, base, items,
+    seminar: { title_en: 'Draft test', title_uk: 'Тестова чернетка', start: '2026-10-04', end: '2026-10-11', languages: 'uk,en', default_lang: 'uk', report_name: 'a test group' },
+    names: [{ surname: 'Kravets', given: 'Ivan', surname_cyr: 'Кравець', given_cyr: 'Іван' }, { surname: 'Savchuk', given: 'Olha', surname_cyr: 'Савчук', given_cyr: 'Ольга' }] };
+  const r = await (await fetch(`${GAS}/exec`, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow' })).json();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  return r;
+}
+// Rates every page up to the last one (whatever the number of pages).
+async function complete(page, v = 6) {
+  for (let k = 0; k < 12; k++) {
+    await rateAll(page, v);
+    if (await page.locator('.q-open').count()) break;
+    await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.item'); await settle(page, 200);
+  }
+}
 async function begin(page, who) {
   await page.goto(`${BASE}?s=${SEM}`); await page.waitForSelector('.hero h1');
   await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.names');
@@ -195,6 +216,50 @@ await step('live: after closing, the survey link shows "closed" and sends nothin
   const Z = await phone();
   await Z.page.goto(`${BASE}?s=${SEM}`); await Z.page.waitForSelector('text=Опитування закрито');
   await Z.ctx.close();
+});
+await step('live: a draft from the staff tool: the preview sends nothing, the guide opens it, the waiting phone then sends', async () => {
+  const d = await saveDraft('draft-test');
+  const P = await phone();
+  await P.page.goto(`${BASE}?s=${d.id}`); await P.page.waitForSelector('.hero h1');
+  assert.match(await P.page.textContent('.preview-flag'), /Попередній перегляд: опитування ще не відкрите/);
+  await P.page.click('.bar-inner .btn-primary'); await P.page.waitForSelector('.names');
+  await P.page.locator('.name-opt', { hasText: 'Кравець' }).click();
+  await P.page.click('.bar-inner .btn-primary'); await P.page.waitForSelector('.item'); await settle(P.page);
+  await complete(P.page); await arm(P.page);
+  await P.page.click('#send'); await P.page.waitForSelector('text=Ще не надіслано.');
+  assert.ok(!(await state(d.id)).tabs.includes(`${d.id} · Answers`), 'a preview sends nothing and leaves no tab');
+  const G = await phone();
+  await G.page.goto(viewUrl(BASE, 'guide', { s: d.id, key: d.guideKey })); await G.page.waitForSelector('.draft-panel');
+  assert.match(await G.page.textContent('.draft-panel'), /The survey is not open yet/);
+  assert.equal(await G.page.locator('.qr-box').count(), 0, 'no QR code while it is a draft');
+  assert.match(await G.page.textContent('main'), /Still to answer · 2/);
+  await G.page.click('.draft-panel button:has-text("Open the survey now")');
+  await G.page.waitForSelector('text=Open it now?');
+  await G.page.click('.draft-panel .confirm .btn-primary');
+  await G.page.waitForSelector('.qr-box svg', { timeout: 15000 });
+  assert.match(await G.page.locator('.link-text').first().textContent(), new RegExp(`\\?s=${d.id}$`));
+  // the phone that waited sends on its next tap, without reloading
+  await P.page.click('#send'); await P.page.waitForSelector('.badge-ok', { timeout: 15000 });
+  assert.equal((await state(d.id)).rows.length, 1);
+  await G.page.click('.refresh-row button'); await G.page.waitForFunction(() => document.querySelector('.big-count .num')?.textContent === '1', null, { timeout: 15000 });
+  assert.deepEqual(P.page.errors, []); assert.deepEqual(G.page.errors, []);
+  await P.ctx.close(); await G.ctx.close();
+});
+await step('live: the staff page shows a draft as "not open yet" and opens it', async () => {
+  const d = await saveDraft('draft-staff');
+  const R = await phone();
+  await R.page.goto(viewUrl(BASE, 'staff', { s: d.id })); await R.page.waitForSelector('#pass');
+  await R.page.fill('#pass', ADMIN); await R.page.click('button[type=submit]');
+  await R.page.waitForSelector('h2:has-text("Not open yet")');
+  assert.match(await R.page.textContent('.rs-head .chip'), /Not open yet/);
+  assert.match(await R.page.textContent('.rs-head'), /2 names on the list/);
+  assert.equal(await R.page.locator('button:has-text("Close survey")').count(), 0, 'nothing to close yet');
+  assert.match(await R.page.locator('.rs-head select option', { hasText: 'Draft test' }).first().textContent(), /not open yet/);
+  await R.page.click('button:has-text("Open survey…")'); await R.page.click('.closing .btn-primary');
+  await R.page.waitForSelector('text=The survey is still open', { timeout: 15000 });
+  assert.match(await R.page.textContent('.rs-head .chip'), /^Open$/);
+  assert.deepEqual(R.page.errors, []);
+  await R.ctx.close();
 });
 await step('live: no browser errors on any phone (CORS, JSON, scripts)', async () => {
   for (const p of [A, B, C]) assert.deepEqual(p.page.errors, []);

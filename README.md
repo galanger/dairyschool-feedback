@@ -17,8 +17,8 @@ One page per role, so a participant only ever sees the questionnaire:
 | Page | Who | What |
 |---|---|---|
 | `/?s=<seminar>` | participants (from the QR) | the questionnaire, thank-you, nothing else |
-| `/guide.html?s=<seminar>#<key>` | the guide | QR, progress, who is missing, on-the-day fixes; never scores |
-| `/staff.html?s=<seminar>` | school staff (passcode) | progress while open, close, then results, client sheet, CSV |
+| `/guide.html?s=<seminar>#<key>` | the guide | opens the survey when the group is ready, then QR, progress, who is missing, on-the-day fixes; never scores |
+| `/staff.html?s=<seminar>` | school staff (passcode) | open a draft, progress while open, close, then results, client sheet, CSV |
 
 Dairy School → **Get links…** in the Sheet prints all three.
 
@@ -50,7 +50,8 @@ lists whatever is still missing with one-tap jumps. "Send" needs everything; not
 
 | Step | Participant | School |
 |---|---|---|
-| Before | – | Create the seminar in the Sheet, paste names, preview, **Open survey** (hourly safety copies start). |
+| Before | – | Create the seminar as a draft (Sheet menu, or `tools/save-draft.mjs` from a file), preview it on a phone (a draft sends nothing). |
+| Start | – | The guide taps **Open the survey now** on the guide page when the group is ready (or staff on `staff.html`, or the Sheet menu). The QR code appears only then; hourly safety copies start. |
 | During | Scans the QR, picks their name, rates every item (comments optional), answers the two required closing questions, sends. Sees "Thank you", never any results. Can answer once only. | Guide page: progress, who is missing, add an extra person, remove a no-show, fix a wrong tap. Results page shows progress only. |
 | Finish | A late sender is told the survey is closed. | **Close survey** on the results page (or the Sheet menu): names deleted, dated copy + CSV emailed, results unlock. Then: client results sheet (print/PDF), comments (translations finish in the background), CSV download. |
 
@@ -89,19 +90,26 @@ node tests/live-check.mjs  # the deployed site: three pages, no stray bar or lin
 3. **First setup.** In the Sheet: reload, then Dairy School → First setup. It creates the tabs and a
    staff passcode. Dairy School → Set survey address (the same `publicUrl`).
 
-## Operate a seminar (Sheet menu)
+## Operate a seminar
 
-1. Dairy School → **New seminar…** (copies the questions of an earlier seminar or the template).
-2. Fill the title and dates in `Seminars`, edit `<id> · Items`, paste names into `<id> · Names`
-   (names only, never passport numbers).
-3. **Get links…** → open the participant link on a phone to preview (a draft sends nothing).
-4. **Open survey…** → give the guide link to the guide; show the QR.
+1. Create the draft, either way:
+   - Sheet: Dairy School → **New seminar…** (copies the questions of an earlier seminar or the
+     template), fill the title and dates in `Seminars`, edit `<id> · Items`, paste names into
+     `<id> · Names` (names only, never passport numbers).
+   - From a file: `PASSCODE=… node tools/save-draft.mjs private/<seminar>.json private/<names>.csv`
+     writes the same tabs and prints the three links; `--id <id>` rewrites that draft in place (same
+     links) as long as it has no answers. Keep real programs and names in `private/` (not published).
+2. Open the participant link on a phone to preview: it shows "Preview" and sends nothing, so the
+   questions and translations can be checked. Give the guide link to the guide.
+3. When the group is ready, the guide taps **Open the survey now** on the guide page (staff can use
+   **Open survey…** on `staff.html` or in the Sheet menu). The QR code and link appear; a phone that
+   was still on the preview sends with its next tap.
 5. On the day, the guide page itself handles an extra person (add a name), a no-show (remove a
    name that has not answered) and a wrong tap (mark the real person as answered, free the wrong
    name). Phones pick the change up within 15 seconds. **Fix a wrong name…** in the Sheet menu does
    the same for staff.
 6. **Close survey…** (also possible from `staff.html`) → names are deleted for good, a dated copy and a
-   CSV backup are made, results unlock on `staff.html`.
+   CSV backup are made, results unlock on `staff.html`. A closed survey is never reopened.
 
 ## Rules kept from the paper reports
 

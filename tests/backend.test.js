@@ -421,3 +421,141 @@ test('a blank or half-written row never counts as an answer', () => {
   const r = post(env, { action: 'results', s: S, key: 'staff-passcode-123' });
   assert.equal(r.responses.length, 1); assert.equal(r.answered, 1);
 });
+
+// ---------- drafts written by tools/save-draft.mjs; the guide opens the survey on the day ----------
+const STAFF = 'staff-passcode-123';
+function draftBody(extra = {}) {
+  return {
+    action: 'saveDraft', key: STAFF, base: 'UVT test 2026',
+    seminar: { title_en: 'Dairy seminar in Israel', title_uk: 'Семінар в Ізраїлі', subtitle_en: 'Test group', subtitle_uk: 'Тестова група',
+      start: '2026-10-04', end: '2026-10-11', languages: 'uk,en', default_lang: 'uk', report_name: 'the test group' },
+    items: [
+      { section_en: 'Monday, 5 October', section_uk: 'Понеділок, 5 жовтня', category: 'lecture', label_en: 'Lecture: farm economics', label_uk: 'Лекція: економіка ферми', detail_en: 'Milk price and quota', detail_uk: 'Ціна молока і квоти' },
+      { section_en: 'Monday, 5 October', section_uk: 'Понеділок, 5 жовтня', category: 'tour', label_en: '+ Tour of Nazareth', label_uk: '=Екскурсія' },
+      { section_en: 'Overall', section_uk: 'Загальна оцінка', category: 'overall', label_en: 'Recommend', label_uk: 'Рекомендація', key: 'recommend' },
+      { section_en: 'Overall', section_uk: 'Загальна оцінка', category: 'overall', label_en: 'Overall', label_uk: 'Загалом', key: 'overall' },
+    ],
+    names: [
+      { surname: 'Bondarenko', given: 'Andrii', surname_cyr: 'Бондаренко', given_cyr: 'Андрій' },
+      { surname: 'Viunenko', given: 'Ivan', surname_cyr: 'В’юненко', given_cyr: 'Іван' },
+    ],
+    ...extra,
+  };
+}
+
+test('a refused answer on a draft leaves no answers tab behind', () => {
+  const env = makeEnv(); seed(env);
+  env.book.getSheetByName('Seminars').data[1][9] = 'draft';
+  assert.equal(post(env, sub('n1', { i01: 5 })).code, 'CLOSED');
+  assert.equal(env.book.getSheetByName(`${S} · Answers`), null);
+});
+
+test('the guide may open a draft and nothing else; a closed survey stays closed', () => {
+  const env = makeEnv(); seed(env);
+  const status = (key, st) => post(env, { action: 'status', s: S, key, status: st });
+  env.book.getSheetByName('Seminars').data[1][9] = 'draft';
+  assert.equal(status('wrong-key-12345', 'open').code, 'UNAUTHORIZED');
+  assert.equal(status('guide-key-1', 'closed').code, 'UNAUTHORIZED', 'closing deletes names: staff only');
+  assert.equal(status('guide-key-1', 'draft').code, 'UNAUTHORIZED');
+  assert.deepEqual(status('guide-key-1', 'open'), { ok: true, status: 'open' });
+  assert.equal(get(env, { action: 'config', s: S }).seminar.status, 'open');
+  assert.equal(env.triggers.filter((t) => t.getHandlerFunction() === 'hourlyBackup').length, 1, 'opening arms the hourly copy');
+  assert.deepEqual(status('guide-key-1', 'open'), { ok: true, status: 'open' }, 'a second tap is harmless');
+  assert.equal(post(env, sub('n1', { i01: 5 })).ok, true, 'answers are taken once open');
+  assert.equal(status(STAFF, 'closed').ok, true);
+  assert.equal(status(STAFF, 'open').code, 'CLOSED', 'never reopened');
+  assert.equal(status(STAFF, 'draft').code, 'CLOSED', 'never back to draft, which would hide the results');
+  assert.equal(status('guide-key-1', 'open').code, 'UNAUTHORIZED');
+  assert.equal(post(env, { action: 'results', s: S, key: STAFF }).responses.length, 1);
+  // a draft without names cannot be opened, by anyone
+  const env2 = makeEnv(); seed(env2);
+  env2.book.getSheetByName('Seminars').data[1][9] = 'draft';
+  env2.book.getSheetByName(`${S} · Names`).data.splice(1);
+  assert.equal(post(env2, { action: 'status', s: S, key: 'guide-key-1', status: 'open' }).code, 'INVALID');
+});
+
+test('save draft: a new seminar with its questions and names, hard-to-guess id, read back by the site', () => {
+  const env = makeEnv(); seed(env);
+  const r = post(env, draftBody());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.id, /^uvt-test-2026-[a-z2-9]{4}$/);
+  assert.equal(r.guideKey.length, 10); assert.equal(r.items, 4); assert.equal(r.names, 2);
+  const cfg = get(env, { action: 'config', s: r.id }).seminar;
+  assert.equal(cfg.status, 'draft');
+  assert.deepEqual(cfg.title, { en: 'Dairy seminar in Israel', uk: 'Семінар в Ізраїлі' });
+  assert.deepEqual(cfg.dates, { start: '2026-10-04', end: '2026-10-11' });
+  assert.deepEqual(cfg.languages, ['uk', 'en']); assert.equal(cfg.defaultLang, 'uk');
+  assert.deepEqual(cfg.sections.map((x) => x.title.uk), ['Понеділок, 5 жовтня', 'Загальна оцінка']);
+  assert.deepEqual(cfg.items.map((x) => x.id), ['i01', 'i02', 'i03', 'i04']);
+  assert.deepEqual(cfg.items[0].detail, { en: 'Milk price and quota', uk: 'Ціна молока і квоти' });
+  assert.equal(cfg.items[1].label.en, '+ Tour of Nazareth'); assert.equal(cfg.items[1].label.uk, '=Екскурсія');
+  assert.deepEqual(cfg.items.map((x) => x.key || null), [null, null, 'recommend', 'overall']);
+  assert.deepEqual(cfg.names.map((n) => [n.id, n.surnameCyr]), [['n01', 'Бондаренко'], ['n02', 'В’юненко']]);
+  assert.equal(env.book.sheets.reduce((n, s) => n + s.formulas, 0), 0, 'text never becomes a formula');
+  const list = post(env, { action: 'seminars', key: STAFF }).seminars;
+  assert.deepEqual(list.map((x) => [x.id, x.status]), [[r.id, 'draft'], [S, 'open']]);
+  // the whole day on the new draft: the guide opens it, someone answers, the staff close it
+  assert.equal(post(env, { action: 'status', s: r.id, key: r.guideKey, status: 'open' }).ok, true);
+  const answer = { action: 'submit', s: r.id, nameId: 'n02', submissionId: randomUUID(), answers: { i01: 6, i02: 'na', i03: 7, i04: 7 }, open: { q1: 'Ферми', q2: 'Більше часу' } };
+  assert.equal(post(env, answer).ok, true);
+  const head = env.book.getSheetByName(`${r.id} · Answers`).data[0];
+  assert.deepEqual(head.slice(0, 5), ['response', '1. Lecture: farm economics', '2. + Tour of Nazareth', '3. Recommend', '4. Overall']);
+  assert.equal(post(env, { action: 'status', s: r.id, key: STAFF, status: 'closed' }).ok, true);
+  const res = post(env, { action: 'results', s: r.id, key: STAFF });
+  assert.equal(res.invited, 2); assert.equal(res.responses.length, 1); assert.equal(res.responses[0].answers.i02, 'na');
+});
+
+test('save draft: rewrites a draft in place, never an open or closed seminar or one with answers', () => {
+  const env = makeEnv(); seed(env);
+  const first = post(env, draftBody());
+  const changed = draftBody({ s: first.id, names: undefined });
+  changed.items = changed.items.slice(1);
+  changed.seminar = { ...changed.seminar, title_uk: 'Новий заголовок' };
+  const again = post(env, changed);
+  assert.equal(again.ok, true, JSON.stringify(again));
+  assert.equal(again.id, first.id, 'same link'); assert.equal(again.guideKey, first.guideKey, 'same guide link');
+  assert.equal(again.names, 2, 'names kept when none are sent');
+  const cfg = get(env, { action: 'config', s: first.id }).seminar;
+  assert.equal(cfg.items.length, 3); assert.equal(cfg.items[0].label.en, '+ Tour of Nazareth');
+  assert.equal(cfg.title.uk, 'Новий заголовок'); assert.equal(cfg.status, 'draft');
+  assert.equal(env.book.getSheetByName('Seminars').data.filter((x) => x[0] === first.id).length, 1, 'no second row');
+  assert.equal(post(env, draftBody({ s: 'not-there-1234' })).code, 'NOT_FOUND');
+  assert.equal(post(env, draftBody({ s: S })).code, 'LOCKED', 'an open survey keeps its questions');
+  post(env, { action: 'status', s: first.id, key: STAFF, status: 'open' });
+  assert.equal(post(env, draftBody({ s: first.id })).code, 'LOCKED');
+  post(env, { action: 'status', s: first.id, key: STAFF, status: 'closed' });
+  assert.equal(post(env, draftBody({ s: first.id })).code, 'LOCKED');
+});
+
+test('save draft: an empty answers tab left by an older version gets the new header', () => {
+  const env = makeEnv(); seed(env);
+  const d = post(env, draftBody());
+  env.book.sheets.push(new FakeSheet(`${d.id} · Answers`, [['response', '1. Old question', 'Comment 1', 'Old open question']]));
+  const changed = draftBody({ s: d.id });
+  changed.items = changed.items.slice(2);
+  assert.equal(post(env, changed).ok, true);
+  assert.deepEqual(env.book.getSheetByName(`${d.id} · Answers`).data[0].filter(String),
+    ['response', '1. Recommend', '2. Overall', 'Comment 1', 'Comment 2', 'What was the most valuable part of the seminar for you?', 'What could we do better?']);
+});
+
+test('save draft: staff passcode only, and bad input is refused with the reason', () => {
+  const env = makeEnv(); seed(env);
+  const problem = (body) => { const r = post(env, body); return r.ok ? 'ok' : `${r.code}${r.problem ? ` ${r.problem}` : ''}`; };
+  assert.equal(problem(draftBody({ key: 'guide-key-1' })), 'UNAUTHORIZED');
+  assert.equal(problem(draftBody({ key: undefined })), 'UNAUTHORIZED');
+  assert.equal(problem(draftBody({ base: 'ab' })), 'INVALID base');
+  assert.equal(problem(draftBody({ names: [{ surname: 'Bondarenko', given: 'FA1234567' }] })), 'INVALID name 1', 'never a passport number');
+  assert.equal(problem(draftBody({ names: [{ given: 'Andrii' }] })), 'INVALID name 1');
+  const items = (patch, i = 0) => { const b = draftBody(); b.items[i] = { ...b.items[i], ...patch }; return b; };
+  assert.equal(problem(items({ category: 'zoo' })), 'INVALID item 1: category');
+  assert.equal(problem(items({ label_en: '  ' })), 'INVALID item 1: label_en');
+  assert.equal(problem(items({ label_uk: 'х'.repeat(301) })), 'INVALID item 1: label_uk');
+  assert.equal(problem(items({ key: 'overall' }, 2)), 'INVALID item 4: key', 'one overall question only');
+  assert.equal(problem(items({ optional: 'yes' })), 'INVALID item 1: optional');
+  assert.equal(problem(draftBody({ items: [] })), 'INVALID items');
+  assert.equal(problem(draftBody({ seminar: { ...draftBody().seminar, end: '2026-10-01' } })), 'INVALID dates');
+  assert.equal(problem(draftBody({ seminar: { ...draftBody().seminar, languages: 'uk,ru' } })), 'INVALID languages');
+  assert.equal(problem(draftBody({ seminar: { ...draftBody().seminar, default_lang: 'en', languages: 'uk' } })), 'INVALID default_lang');
+  assert.equal(problem(draftBody()), 'ok');
+  assert.equal(post(env, { action: 'seminars', key: STAFF }).seminars.length, 2, 'only the valid call wrote anything');
+});

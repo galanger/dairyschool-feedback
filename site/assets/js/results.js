@@ -85,13 +85,14 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
   function header(sem, extra, actions) {
     const select = seminars.length > 1 && h('label', {}, h('span', { class: 'sr-only' }, 'Seminar'),
       h('select', { onchange: (e) => showSeminar(e.target.value) },
-        seminars.map((x) => h('option', { value: x.id, selected: x.id === current }, `${en(x.title)}${x.status === 'open' ? ' · open' : ''}`))));
+        seminars.map((x) => h('option', { value: x.id, selected: x.id === current }, `${en(x.title)}${x.status === 'open' ? ' · open' : x.status === 'draft' ? ' · not open yet' : ''}`))));
+    const chip = { open: ['chip-open', 'Open'], draft: ['chip-draft', 'Not open yet'] }[sem.status] || ['chip-closed', 'Closed'];
     return h('div', { class: 'rs-head' },
       h('div', {},
         h('h1', { tabindex: '-1' }, en(sem.title)),
         h('div', { class: 'meta' },
           sem.dates && h('span', {}, formatDates(sem.dates.start, sem.dates.end, 'en')),
-          h('span', { class: `chip ${sem.status === 'open' ? 'chip-open' : 'chip-closed'}` }, sem.status === 'open' ? 'Open' : 'Closed'),
+          h('span', { class: `chip ${chip[0]}` }, chip[1]),
           extra)),
       h('div', { class: 'head-actions' }, select, actions));
   }
@@ -102,13 +103,42 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
     swap(main, h('div', { class: 'loading', role: 'status' }, h('div', { class: 'spinner' }), 'Loading…'));
     const res = await api.getResults(id, key);
     if (!res.ok && res.code === 'UNAUTHORIZED') return gate('Please enter the passcode again.');
-    if (!res.ok && res.code === 'LOCKED') return renderOpen(res);
+    if (!res.ok && res.code === 'LOCKED') return res.seminar?.status === 'draft' ? renderDraft(res) : renderOpen(res);
     if (!res.ok) {
       swap(main, h('div', { class: 'panel' }, h('p', {}, 'Couldn’t load the results. Check the connection and try again.'),
         h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => showSeminar(id) }, icon('refresh'), 'Try again')));
       return;
     }
     renderDashboard(res);
+  }
+
+  // ---------- survey not open yet (a draft) ----------
+  function renderDraft(res) {
+    const sem = res.seminar;
+    const total = res.invited || 0;
+    const err = h('p', { class: 'err', role: 'alert' });
+    const confirmBox = h('div', { class: 'closing', hidden: true },
+      h('p', {}, h('b', {}, 'Open the survey now? '), 'From then on, everyone with the link can answer, and the questions can’t be changed any more.'),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: async (e) => {
+          const btn = e.currentTarget; // (currentTarget is null after the await)
+          btn.disabled = true; err.textContent = '';
+          const r = await api.setStatus(current, key, 'open');
+          // No reply: it may still have gone through, so look again instead of guessing.
+          if (r.ok || ['TIMEOUT', 'NETWORK', 'BUSY'].includes(r.code)) { const l = await api.listSeminars(key); if (l.ok) seminars = l.seminars; showSeminar(current); return; }
+          btn.disabled = false;
+          err.textContent = r.code === 'INVALID' ? 'The names list is empty. Add the names first.' : 'Couldn’t open the survey. Try again.';
+        } }, 'Open survey'),
+        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { confirmBox.hidden = true; openBtn.hidden = false; } }, 'Cancel')),
+      err);
+    const openBtn = h('button', { class: 'btn btn-primary', type: 'button', onclick: () => { confirmBox.hidden = false; openBtn.hidden = true; } }, 'Open survey…');
+    swap(main, h('section', { class: 'rs' },
+      header(sem, h('span', {}, `${total} ${total === 1 ? 'name' : 'names'} on the list`)),
+      h('div', { class: 'panel' },
+        h('h2', {}, 'Not open yet'),
+        h('p', { class: 'muted' }, 'The survey link shows a preview that sends nothing, so the questions can be checked on a phone. Open the survey when the group is ready to answer. The guide can also open it from the guide page.'),
+        openBtn, confirmBox)));
+    main.querySelector('h1')?.focus({ preventScroll: true });
   }
 
   // ---------- survey still open ----------

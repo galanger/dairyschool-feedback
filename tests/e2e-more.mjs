@@ -186,10 +186,21 @@ async function patchState(page, fn) {
     await page.locator('.name-opt', { hasText: 'Мороз' }).click();
     await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.item');
     await toLast(page); await rateAll(page, 6);
-    await arm(page); await page.click('#send'); await page.waitForSelector('text=nothing was sent');
+    assert.match(await page.textContent('.preview-flag'), /Попередній перегляд: опитування ще не відкрите/);
+    await arm(page); await page.click('#send'); await page.waitForSelector('text=Ще не надіслано.');
     await page.screenshot({ path: `${OUT}/k-preview.png` });
-    const n = await page.evaluate(() => JSON.parse(localStorage.getItem('dsf-demo-v1')).seminars.demo.responses.length);
-    assert.equal(n, 0);
+    const count = () => page.evaluate(() => JSON.parse(localStorage.getItem('dsf-demo-v1')).seminars.demo.responses.length);
+    assert.equal(await count(), 0);
+  });
+  await step('draft opened meanwhile: the same phone sends with its next tap, no reload', async () => {
+    await page.evaluate(() => {
+      const st = JSON.parse(localStorage.getItem('dsf-demo-v1'));
+      st.seminars.demo.status = 'open';
+      localStorage.setItem('dsf-demo-v1', JSON.stringify(st));
+    });
+    await page.click('#send'); await page.waitForSelector('.badge-ok');
+    assert.equal(await page.locator('.preview-flag').count(), 0);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dsf-demo-v1')).seminars.demo.responses.length), 1);
   });
   await step('closed survey shows a clear closed screen', async () => {
     await patchState(page, (st) => { st.seminars.demo.status = 'closed'; });

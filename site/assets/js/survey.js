@@ -35,7 +35,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     swap(topbar, h('div', { class: 'topbar-inner' },
       h('span', { class: 'logo-chip' }, h('img', { src: 'assets/img/logo.png', alt: 'Dairy School — The Israeli Experience', width: '110', height: '26' })),
       sw));
-    if (S.preview) topbar.append(h('p', { class: 'preview-flag' }, 'Preview: the survey is not open yet. Answers are not sent.'));
+    if (S.preview) topbar.append(h('p', { class: 'preview-flag' }, t('previewFlag')));
   }
 
   function setBar(...children) {
@@ -248,7 +248,9 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     const res = await api.getConfig(seminarId);
     if (!res.ok || S.screen !== 'names') return;
     if (S.offline) { S.offline = false; document.querySelector('.offline-note')?.remove(); }
-    if (res.seminar.status !== 'open' && !S.preview) return show('closed');
+    const st = res.seminar.status;
+    if (st !== 'open' && !(st === 'draft' && S.preview)) return show('closed');
+    if (S.preview && st === 'open') { S.preview = false; S.seminar.status = 'open'; renderTopbar(); } // opened meanwhile
     const sig = (list) => list.map((n) => `${n.id}:${n.answered ? 1 : 0}`).join('|');
     if (sig(res.seminar.names) === sig(S.seminar.names)) return; // nothing changed: leave the screen alone
     S.seminar.names = res.seminar.names;
@@ -629,9 +631,19 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     const missing = [...sections.flatMap((sec) => incompleteIn(sec)), ...openMissing()];
     if (missing.length) return needPrompt(note, missing);
     if (S.preview) {
-      swap(note, h('div', { class: 'soft', role: 'status' }, h('p', {}, h('b', {}, 'Preview. '), 'The survey isn’t open yet, so nothing was sent.')));
-      note.hidden = false;
-      return;
+      // It may have been opened meanwhile (the guide opens it when the group is ready): look first.
+      S.sending = true; setSending(btn, true);
+      const fresh = await api.getConfig(seminarId);
+      S.sending = false;
+      btn = document.getElementById('send') || btn;
+      note = bar.querySelector('.bar-note') || note;
+      setSending(btn, false);
+      if (!fresh.ok || fresh.seminar.status === 'draft') {
+        swap(note, h('div', { class: 'soft', role: 'status' }, h('p', {}, h('b', {}, t('previewSendTitle')), ' ', t('previewSendText'))));
+        note.hidden = false;
+        return;
+      }
+      S.preview = false; S.seminar.status = fresh.seminar.status; renderTopbar();
     }
     S.sending = true; S.error = null;
     const errBox = document.getElementById('send-error'); errBox?.replaceChildren();

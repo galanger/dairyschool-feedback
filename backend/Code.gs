@@ -54,6 +54,7 @@ function doPost(e) {
       case 'addName': return addName_(p.s, p.key, p);
       case 'removeName': return removeName_(p.s, p.key, p.nameId);
       case 'swapName': return swapName_(p.s, p.key, p.wrongId, p.realId);
+      case 'saveDraft': return saveDraft_(p);
       default: return { ok: false, code: 'INVALID' };
     }
   });
@@ -162,14 +163,18 @@ function cleanText_(v, max) {
 // A leading apostrophe makes Sheets keep text as typed ("=1+1", "10/10", "- too long").
 function asText_(s) { return s ? "'" + s : ''; }
 
+function answersHead_(cfg) {
+  return ['response'].concat(
+    cfg.items.map(function (it) { return it.no + '. ' + it.label.en; }),
+    cfg.items.map(function (it) { return 'Comment ' + it.no; }),
+    cfg.openQuestions.map(function (q) { return q.label.en; }));
+}
+
 function answersSheet_(id, cfg) {
   var sh = tab_(id, 'Answers');
   if (sh) return sh;
   sh = book_().insertSheet(id + ' · Answers');
-  var head = ['response'].concat(
-    cfg.items.map(function (it) { return it.no + '. ' + it.label.en; }),
-    cfg.items.map(function (it) { return 'Comment ' + it.no; }),
-    cfg.openQuestions.map(function (q) { return q.label.en; }));
+  var head = answersHead_(cfg);
   sh.getRange(1, 1, 1, head.length).setValues([head]);
   sh.setFrozenRows(1);
   protect_(sh, 'Answers: never edit or delete by hand');
@@ -245,16 +250,19 @@ function submit_(p) {
   if (!lock.tryLock(20000)) return { ok: false, code: 'BUSY' };
   try {
     var cfg = seminarConfig_(row);
-    var sheet = answersSheet_(id, cfg);
+    var existing = tab_(id, 'Answers');
     // A retry of a submission that already went through succeeds again.
-    if (sheet.getLastRow() > 1) {
-      var found = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).createTextFinder(String(p.submissionId)).matchEntireCell(true).findNext();
+    if (existing && existing.getLastRow() > 1) {
+      var found = existing.getRange(2, 1, existing.getLastRow() - 1, 1).createTextFinder(String(p.submissionId)).matchEntireCell(true).findNext();
       if (found) return { ok: true, repeat: true };
     }
     if (String(row.status).toLowerCase() !== 'open') return { ok: false, code: 'CLOSED' };
     var nameId = String(p.nameId || '');
     if (!names_(id).some(function (n) { return n.id === nameId; })) return { ok: false, code: 'NAME_UNKNOWN' };
     if (isUsed_(id, nameId)) return { ok: false, code: 'NAME_TAKEN' };
+    // The answers tab is made by the first real answer (never by a refused one), so a draft's
+    // questions can still change without leaving a stale header behind.
+    var sheet = existing || answersSheet_(id, cfg);
 
     var values = [String(p.submissionId)];
     cfg.items.forEach(function (it) {
@@ -414,13 +422,23 @@ function listSeminars_(key) {
 }
 
 function setStatus_(id, key, status) {
-  if (!isAdmin_(key)) return { ok: false, code: 'UNAUTHORIZED' };
+  var admin = isAdmin_(key);
+  // Besides the staff, the guide may open a draft: the guide is with the group and knows when it
+  // is ready to answer. Closing (which deletes the names) stays with the staff.
+  if (!admin && status !== 'open') return { ok: false, code: 'UNAUTHORIZED' };
   if (['open', 'closed', 'draft'].indexOf(status) < 0) return { ok: false, code: 'INVALID' };
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { ok: false, code: 'BUSY' };
   try {
     var row = seminarRow_(id);
-    if (!row) return { ok: false, code: 'NOT_FOUND' };
+    if (!row) return { ok: false, code: admin ? 'NOT_FOUND' : 'UNAUTHORIZED' };
+    var was = String(row.status).toLowerCase();
+    if (!admin) {
+      if (!isGuide_(row, key) || (was !== 'draft' && was !== 'open')) return { ok: false, code: 'UNAUTHORIZED' };
+      if (was === 'open') return { ok: true, status: 'open' }; // two taps, or two guides: already done
+    }
+    // A closed survey stays closed: its names are gone and its results are final.
+    if (was === 'closed' && status !== 'closed') return { ok: false, code: 'CLOSED' };
     var sheet = book_().getSheetByName(SEMINARS);
     var col = function (name) { return SEMINAR_COLS.indexOf(name) + 1; };
     if (status === 'closed' && String(row.status).toLowerCase() !== 'closed') {
@@ -453,6 +471,128 @@ function deleteNames_(id, names) {
   names.forEach(function (n) { props_().deleteProperty(usedKey_(id, n.id)); });
   var sh = tab_(id, 'Names');
   if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+}
+
+// ---------------------------------------------------------------- drafts
+// tools/save-draft.mjs writes a seminar from a file (staff passcode): a new draft, or a rewrite of
+// a draft that has no answers (titles, dates, questions, names). Open and closed seminars, and
+// answers, are never touched by it; the Sheet stays the place to read and edit everything.
+var CATEGORIES = ['lecture', 'farm', 'tour', 'partners', 'guide', 'hotel', 'food', 'other', 'overall'];
+
+// Clean text within max characters; null when invalid (too long, not text, or required and empty).
+function draftText_(v, max, required) {
+  if (v == null || v === '') return required ? null : '';
+  if (typeof v !== 'string') return null;
+  var s = cleanText_(v, max + 1);
+  return s.length > max || (required && !s) ? null : s;
+}
+
+function draftProblem_(p) {
+  var sem = p.seminar;
+  if (!sem || typeof sem !== 'object') return 'seminar';
+  if (draftText_(sem.title_en, 200, true) === null) return 'title_en';
+  var opt = ['title_uk', 'subtitle_en', 'subtitle_uk', 'report_name'];
+  for (var i = 0; i < opt.length; i++) if (draftText_(sem[opt[i]], 200, false) === null) return opt[i];
+  var day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!day.test(String(sem.start)) || !day.test(String(sem.end)) || String(sem.end) < String(sem.start)) return 'dates';
+  var langs = String(sem.languages || '').split(/[,\s]+/).filter(String);
+  if (!langs.length || langs.some(function (l) { return l !== 'uk' && l !== 'en'; })) return 'languages';
+  if (langs.indexOf(String(sem.default_lang)) < 0) return 'default_lang';
+  var items = p.items;
+  if (!Array.isArray(items) || !items.length || items.length > 80) return 'items';
+  var keys = {};
+  for (var k = 0; k < items.length; k++) {
+    var it = items[k] || {}, at = 'item ' + (k + 1) + ': ';
+    if (draftText_(it.label_en, 300, true) === null) return at + 'label_en';
+    if (draftText_(it.label_uk, 300, false) === null) return at + 'label_uk';
+    if (draftText_(it.section_en, 100, true) === null) return at + 'section_en';
+    if (draftText_(it.section_uk, 100, false) === null) return at + 'section_uk';
+    if (draftText_(it.detail_en, 300, false) === null || draftText_(it.detail_uk, 300, false) === null) return at + 'detail';
+    if (CATEGORIES.indexOf(it.category) < 0) return at + 'category';
+    if (it.optional != null && typeof it.optional !== 'boolean') return at + 'optional';
+    if (it.key) {
+      if ((it.key !== 'overall' && it.key !== 'recommend') || keys[it.key]) return at + 'key';
+      keys[it.key] = true;
+    }
+  }
+  if (p.names != null) {
+    if (!Array.isArray(p.names) || p.names.length > 150) return 'names';
+    for (var n = 0; n < p.names.length; n++) {
+      var x = p.names[n] || {}, f = ['surname', 'given', 'surname_cyr', 'given_cyr'];
+      for (var j = 0; j < f.length; j++) {
+        var v = draftText_(x[f[j]], 60, f[j] === 'surname');
+        if (v === null || /\d/.test(v)) return 'name ' + (n + 1); // never a passport number
+      }
+    }
+  }
+  return null;
+}
+
+function saveDraft_(p) {
+  if (!isAdmin_(p.key)) return { ok: false, code: 'UNAUTHORIZED' };
+  var problem = draftProblem_(p);
+  if (problem) return { ok: false, code: 'INVALID', problem: problem };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, code: 'BUSY' };
+  try {
+    var sheet = book_().getSheetByName(SEMINARS);
+    if (!sheet) return { ok: false, code: 'INVALID', problem: 'run First setup in the Sheet' };
+    var row = null, id;
+    if (p.s) {
+      row = seminarRow_(p.s);
+      if (!row) return { ok: false, code: 'NOT_FOUND' };
+      // Answers are stored in the order of the questions, so only a draft without answers changes.
+      if (String(row.status).toLowerCase() !== 'draft' || countAnswers_(tab_(row.id, 'Answers')) > 0) return { ok: false, code: 'LOCKED' };
+      id = String(row.id);
+    } else {
+      var base = String(p.base || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+      if (base.length < 3) return { ok: false, code: 'INVALID', problem: 'base' };
+      do { id = base + '-' + randomKey_(4); } while (seminarRow_(id)); // hard to guess, still readable
+    }
+    var t = function (v, max) { return asText_(draftText_(v, max, false)); };
+
+    var itemRows = [ITEM_COLS].concat(p.items.map(function (it, i) {
+      return [i + 1, 'i' + ('0' + (i + 1)).slice(-2), t(it.section_en, 100), t(it.section_uk, 100), it.category,
+        t(it.label_en, 300), t(it.label_uk, 300), t(it.detail_en, 300), t(it.detail_uk, 300), it.optional === true, it.key || ''];
+    }));
+    var items = tab_(id, 'Items') || book_().insertSheet(id + ' · Items');
+    items.clearContents();
+    items.getRange(1, 1, itemRows.length, ITEM_COLS.length).setValues(itemRows);
+    items.setFrozenRows(1);
+
+    // Names: replaced when given; otherwise the ones already there stay.
+    var names = tab_(id, 'Names');
+    if (p.names || !names) {
+      names = names || book_().insertSheet(id + ' · Names');
+      names.clearContents();
+      var nameRows = [NAME_COLS].concat((p.names || []).map(function (x, i) {
+        return ['n' + ('0' + (i + 1)).slice(-2), t(x.surname, 60), t(x.given, 60), t(x.surname_cyr, 60), t(x.given_cyr, 60)];
+      }));
+      names.getRange(1, 1, nameRows.length, NAME_COLS.length).setValues(nameRows);
+      names.setFrozenRows(1);
+    }
+
+    // The seminar row. On a rewrite the id, the status (draft) and the guide key stay.
+    var sem = p.seminar;
+    var guideKey = row ? String(row.guide_key) : randomKey_(10);
+    var fields = { id: id, title_en: t(sem.title_en, 200), title_uk: t(sem.title_uk, 200), subtitle_en: t(sem.subtitle_en, 200),
+      subtitle_uk: t(sem.subtitle_uk, 200), start: t(sem.start, 10), end: t(sem.end, 10), languages: t(sem.languages, 20),
+      default_lang: t(sem.default_lang, 5), status: 'draft', guide_key: guideKey, report_name: t(sem.report_name, 200), invited: '' };
+    var at = row ? row._row : sheet.getLastRow() + 1;
+    sheet.getRange(at, 1, 1, SEMINAR_COLS.length).setValues([SEMINAR_COLS.map(function (c) { return fields[c]; })]);
+
+    // An empty answers tab (left by an older version) gets the new questions as its header.
+    var ans = tab_(id, 'Answers');
+    if (ans) {
+      var head = answersHead_(seminarConfig_(seminarRow_(id)));
+      ans.getRange(1, 1, 1, Math.max(ans.getLastColumn(), head.length)).clearContent();
+      ans.getRange(1, 1, 1, head.length).setValues([head]);
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, id: id, guideKey: guideKey, items: p.items.length, names: names_(id).length };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------------------------------------------------------------- translations

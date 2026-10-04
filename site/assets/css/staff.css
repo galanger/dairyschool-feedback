@@ -58,6 +58,7 @@ body.staff .topbar-inner { max-width: 1120px; }
 .head-btn { flex: 0 0 auto; min-height: 44px; font-size: 15px; }
 .chip-open { background: var(--brand-wash); color: var(--brand-ink); }
 .chip-closed { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.chip-draft { background: var(--warn-wash); color: var(--warn-ink); border: 1px solid var(--warn-line); }
 .chip-few { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); font-weight: 600; font-size: 12px; padding: 2px 7px; }
 .chip-soft { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); font-weight: 600; font-size: 12.5px; padding: 2px 8px; }
 
@@ -178,6 +179,8 @@ table.rt { border-collapse: separate; border-spacing: 0; width: 100%; font-size:
 .closing { display: flex; flex-direction: column; gap: 12px; }
 .closing .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .closing .row .btn { min-height: 46px; font-size: 15.5px; flex: 0 1 auto; }
+.closing .err, .draft-panel .err { color: var(--danger-ink); margin: 0; }
+.closing .err:empty, .draft-panel .err:empty { display: none; }
 .btn-danger { background: var(--danger-ink); color: var(--on-danger); }
 .dq { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .dq div { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }

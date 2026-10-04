@@ -57,9 +57,10 @@ export function startServer(port = 8790) {
     // test helpers
     if (url.pathname === '/__reset') { env = seedEnv(); res.writeHead(200, cors); return res.end('ok'); }
     if (url.pathname === '/__state') {
-      const answers = env.book.getSheetByName(`${SEM} · Answers`);
+      const id = url.searchParams.get('s') || SEM;
+      const answers = env.book.getSheetByName(`${id} · Answers`);
       res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
-      const names = env.book.getSheetByName(`${SEM} · Names`);
+      const names = env.book.getSheetByName(`${id} · Names`);
       return res.end(JSON.stringify({ rows: answers ? answers.data.slice(1) : [], used: [...env.props.keys()].filter((k) => k.startsWith('used:')),
         names: names ? names.data.slice(1).filter((r) => r.join('')) : [], mail: env.mail.length, tabs: env.book.sheets.map((s) => s.name) }));
     }

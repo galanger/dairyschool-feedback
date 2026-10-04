@@ -67,6 +67,29 @@ export async function mount(root, { api, seminarId, key, cfg, inline = false, al
     overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
   }
 
+  // ---------- a draft: the guide opens the survey when the group is ready ----------
+  function draftPanel() {
+    const msg = h('p', { class: 'onday-msg', role: 'status' });
+    const confirm = h('div', { class: 'btn-row left confirm', hidden: true });
+    const openBtn = h('button', { class: 'btn btn-primary', type: 'button', onclick: () => {
+      swap(confirm, h('span', {}, t('openConfirm')),
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: async (e) => {
+          const b = e.currentTarget; // (currentTarget is null after the await)
+          b.disabled = true; msg.classList.remove('err'); msg.textContent = '…';
+          const r = await api.setStatus(seminarId, key, 'open');
+          if (r.ok) { msg.textContent = ''; seminar.status = 'open'; if (progress) progress.status = 'open'; }
+          else { b.disabled = false; msg.classList.add('err'); msg.textContent = t('openErr'); }
+          refresh(false); // shows the QR code once open (also when a reply was lost but it went through)
+        } }, t('open')),
+        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { swap(confirm); confirm.hidden = true; openBtn.hidden = false; } }, t('cancel')));
+      confirm.hidden = false; openBtn.hidden = true;
+    } }, t('openNow'));
+    return h('div', { class: 'panel draft-panel' },
+      h('p', { class: 'all-done' }, icon('lock'), t('guideDraft')),
+      h('p', { class: 'hint' }, t('guideDraftHint')),
+      h('div', { class: 'btn-row left' }, openBtn), confirm, msg);
+  }
+
   // ---------- names on the day: an extra person, a no-show, a wrong tap ----------
   // Built once and kept across the 30 s refreshes, so a half-typed name is never wiped.
   let onDay = null;
@@ -189,6 +212,8 @@ export async function mount(root, { api, seminarId, key, cfg, inline = false, al
     const linkEl = h('p', { class: 'link-text' }, url);
     const p = progress;
     const closed = p?.status === 'closed' || seminar.status === 'closed';
+    // A draft gets no QR code: a link shared too early would only show a preview that can't send.
+    const draft = !closed && (p?.status || seminar.status) === 'draft';
     const total = p?.total ?? seminar.names.length;
     const answered = p ? (p.status === 'closed' ? p.answered : Math.max(0, total - (p.missing || []).length)) : 0;
     const missing = p?.missing || [];
@@ -214,7 +239,7 @@ export async function mount(root, { api, seminarId, key, cfg, inline = false, al
           h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => refresh(true) }, icon('refresh'), t('refresh')))),
       closed
         ? h('div', { class: 'panel' }, h('p', { class: 'all-done' }, icon('lock'), t('guideClosed')))
-        : h('div', { class: 'panel qr-card' },
+        : draft ? draftPanel() : h('div', { class: 'panel qr-card' },
           h('h2', {}, t('guideScan')), qrSvg(url), linkEl,
           h('div', { class: 'btn-row' }, copyBtn,
             h('button', { class: 'btn btn-secondary', type: 'button', onclick: bigQR }, icon('expand'), t('bigQR')))),
