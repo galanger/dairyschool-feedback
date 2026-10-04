@@ -57,17 +57,25 @@ test('once per name; a repeated send counts once', () => {
   assert.equal(get(env, { action: 'config', s: S }).seminar.names.find((n) => n.id === 'n1').answered, true);
 });
 
-test('stored answers carry no name, no time, no language', () => {
+test('stored answers carry no name and no language; the last column is the time sent, in Israel time', () => {
   const env = makeEnv(); seed(env);
   post(env, sub('n1', { i01: 6 }, { comments: { i01: 'Дуже добре' }, lang: 'uk', name: 'Bondarenko' }));
   const sheet = env.book.getSheetByName(`${S} · Answers`);
   const flat = JSON.stringify(sheet.data);
   assert.ok(!/Bondarenko|Бондаренко|n1|uk"/.test(flat), flat);
   assert.deepEqual(sheet.data[0].slice(0, 2), ['response', '1. Lecture: heat stress']);
-  assert.ok(!sheet.data[0].some((h) => /time|date|name|lang/i.test(h)));
+  assert.equal(sheet.data[0].at(-1), 'Sent (Israel time)');
+  assert.ok(!sheet.data[0].slice(0, -1).some((h) => /time|date|name|lang/i.test(h)));
+  const sent = sheet.data[1].at(-1);
+  assert.match(sent, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, sent);
+  const israel = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).format(d).replace(', ', ' ');
+  assert.ok([israel(new Date()), israel(new Date(Date.now() - 3600000))].includes(sent.slice(0, 13)), `${sent} is Israel time`);
   // the once-only flag lives apart from the answers and has no timestamp
   assert.deepEqual([...env.props.keys()].filter((k) => k.startsWith('used:')), [`used:${S}:n1`]);
   assert.equal(env.props.get(`used:${S}:n1`), '1');
+  post(env, { action: 'status', s: S, key: 'staff-passcode-123', status: 'closed' });
+  assert.equal(post(env, { action: 'results', s: S, key: 'staff-passcode-123' }).responses[0].sentAt, sent, 'results carry it');
+  assert.match(env.mail[0].attachments[0].content.split('\r\n')[0], /Sent \(Israel time\)$/, 'the CSV backup has the column');
 });
 
 test('answers are inserted at random rows, not in arrival order', () => {
@@ -537,7 +545,7 @@ test('save draft: an empty answers tab left by an older version gets the new hea
   changed.items = changed.items.slice(2);
   assert.equal(post(env, changed).ok, true);
   assert.deepEqual(env.book.getSheetByName(`${d.id} · Answers`).data[0].filter(String),
-    ['response', '1. Recommend', '2. Overall', 'Comment 1', 'Comment 2', 'What was the most valuable part of the seminar for you?', 'What could we do better?']);
+    ['response', '1. Recommend', '2. Overall', 'Comment 1', 'Comment 2', 'What was the most valuable part of the seminar for you?', 'What could we do better?', 'Sent (Israel time)']);
 });
 
 test('save draft: staff passcode only, and bad input is refused with the reason', () => {
@@ -597,4 +605,26 @@ test('backup copies are named in Israel time even when the Sheet was created in 
   assert.ok(env.mail[0].subject.includes(stamp));
   // the seminar's own dates are still read in the Sheet's zone (Sheets keeps dates at its local midnight)
   assert.deepEqual(get(env, { action: 'config', s: S }).seminar.dates.start.length, 10);
+});
+
+test('a test seminar can be deleted with the staff passcode, with all its tabs and flags; a real one never', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 }));
+  assert.equal(post(env, { action: 'deleteSeminar', s: S, key: STAFF }).code, 'INVALID', 'not a test id');
+  const d = post(env, draftBody({ base: 'uvt-2026-test' }));
+  assert.match(d.id, /^uvt-2026-test-/);
+  post(env, { action: 'status', s: d.id, key: STAFF, status: 'open' });
+  post(env, { action: 'submit', s: d.id, nameId: 'n01', submissionId: randomUUID(), answers: { i01: 5 }, comments: { i01: 'Добре' } });
+  post(env, { action: 'status', s: d.id, key: STAFF, status: 'closed' }); // leaves a dated copy and an English tab
+  assert.ok(tabNames(env).some((n) => n.startsWith(`${d.id} · Answers · `)));
+  assert.equal(post(env, { action: 'deleteSeminar', s: d.id, key: 'guide-key-1' }).code, 'UNAUTHORIZED');
+  const r = post(env, { action: 'deleteSeminar', s: d.id, key: STAFF });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.tabs.map((n) => n.replace(/ · \d.*$/, ' · <date>')).sort(), [`${d.id} · Answers`, `${d.id} · Answers · <date>`, `${d.id} · English`, `${d.id} · Items`, `${d.id} · Names`]);
+  assert.ok(!tabNames(env).some((n) => n.startsWith(`${d.id} · `)));
+  assert.ok(![...env.props.keys()].some((k) => k.includes(d.id)));
+  assert.equal(get(env, { action: 'config', s: d.id }).code, 'NOT_FOUND');
+  assert.deepEqual(post(env, { action: 'seminars', key: STAFF }).seminars.map((x) => x.id), [S], 'the real seminar is untouched');
+  assert.equal(env.book.getSheetByName(`${S} · Answers`).getLastRow(), 2, 'its answer is untouched');
+  assert.equal(post(env, { action: 'deleteSeminar', s: d.id, key: STAFF }).code, 'NOT_FOUND', 'a repeat is harmless');
 });

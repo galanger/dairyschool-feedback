@@ -2,7 +2,7 @@
 
 Online version of the Israeli Dairy School's end-of-seminar questionnaire. Each participant
 answers once, on their phone, in Ukrainian or English. When the survey is closed the school team
-gets the classic results sheet plus an analysis. No names, times or tracking are stored with answers.
+gets the classic results sheet plus an analysis. No names or tracking are stored with answers; each answer carries only the time it was sent.
 
 ## Parts
 
@@ -30,7 +30,7 @@ lists whatever is still missing with one-tap jumps. "Send" needs everything; not
 
 ## Data safety
 
-- Answers are stored in the school's own Google Sheet, one row per response, no names, no times.
+- Answers are stored in the school's own Google Sheet, one row per response with the time it was sent (Israel time), no names.
 - No code path deletes or overwrites an answer: `submit_` only inserts rows, closing removes only the
   names list and the once-only flags. The Answers tabs are protected against accidental manual edits
   (Sheets shows a warning before any change by hand).
@@ -99,6 +99,8 @@ node tests/live-check.mjs  # the deployed site: three pages, no stray bar or lin
    - From a file: `PASSCODE=… node tools/save-draft.mjs private/<seminar>.json private/<names>.csv`
      writes the same tabs and prints the three links; `--id <id>` rewrites that draft in place (same
      links) as long as it has no answers. Keep real programs and names in `private/` (not published).
+   - `PASSCODE=… node tools/remove-test-seminar.mjs <id>` deletes a test seminar (an id containing
+     "test", or `sample`) with all its tabs; a real seminar is refused.
 2. Open the participant link on a phone to preview: it shows "Preview" and sends nothing, so the
    questions and translations can be checked. Give the guide link to the guide.
 3. When the group is ready, the guide taps **Open the survey now** on the guide page (staff can use

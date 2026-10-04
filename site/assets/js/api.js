@@ -12,6 +12,9 @@ const TIMEOUT_MS = 45000;
 // quietly before a page shows an error. A timeout is not retried: 45 s is long enough to wait.
 const RETRIES = 2;
 const RETRY_ON = ['LOST', 'SERVER', 'NETWORK'];
+// The time an answer was sent, as the real backend writes it (Israel time, no seconds hidden).
+const israelNow = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  .format(new Date()).replace(', ', ' ').replace(/\b24:/, '00:');
 const newNameId = () => `a${(globalThis.crypto?.randomUUID?.() || `${Math.random()}${Date.now()}`).replace(/[^0-9a-f]/g, '').slice(0, 12)}`;
 
 export function createApi(cfg) {
@@ -136,7 +139,7 @@ function mockApi(cfg) {
       if (!clean) return { ok: false, code: 'INVALID' };
       s.used[p.nameId] = true;
       // Insert at a random position: row order says nothing about who answered when.
-      s.responses.splice(Math.floor(Math.random() * (s.responses.length + 1)), 0, { id: p.submissionId, ...clean });
+      s.responses.splice(Math.floor(Math.random() * (s.responses.length + 1)), 0, { id: p.submissionId, ...clean, sentAt: israelNow() });
       return { ok: true };
     }),
 

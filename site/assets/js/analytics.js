@@ -228,12 +228,13 @@ export function toCSV(seminar, responses, lang = 'en') {
   const items = seminar.items;
   const qs = seminar.openQuestions || [];
   const head = ['response', ...items.map((it) => `${it.no}. ${label(it, lang)}`),
-    ...items.map((it) => `Comment ${it.no}`), ...qs.map((q) => label(q, lang))];
+    ...items.map((it) => `Comment ${it.no}`), ...qs.map((q) => label(q, lang)), 'Sent (Israel time)'];
   const rows = responses.map((r, i) => [
     i + 1,
     ...items.map((it) => { const v = r.answers?.[it.id]; return v === 'na' ? 'NA' : isRating(v) ? v : ''; }),
     ...items.map((it) => r.comments?.[it.id] || ''),
     ...qs.map((q) => r.open?.[q.id] || ''),
+    r.sentAt || '',
   ]);
   return [head, ...rows].map((row) => row.map(esc).join(',')).join('\r\n');
 }

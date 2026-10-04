@@ -544,7 +544,7 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
           h('div', {}, h('b', {}, Q.itemComments + Q.openComments), h('span', {}, 'written comments'))),
         h('div', { class: 'panel' },
           h('h2', {}, 'Export'),
-          h('p', { class: 'muted' }, 'One row per response, no names. Ratings 1–7, NA = didn’t take part, empty = left blank.'),
+          h('p', { class: 'muted' }, 'One row per response with the time it was sent, no names. Ratings 1–7, NA = didn’t take part, empty = left blank.'),
           h('div', { class: 'btn-row', style: 'justify-content:flex-start' },
             h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => {
               try {
@@ -562,7 +562,7 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
           status),
         h('div', { class: 'panel defs' },
           h('h2', {}, 'Where the answers live'),
-          h('p', {}, `In the school’s Google Sheet, tab “${current} · Answers”: one row per response, no names, no times. Nothing in this system ever deletes or overwrites answers; closing the survey removes only the list of names.`),
+          h('p', {}, `In the school’s Google Sheet, tab “${current} · Answers”: one row per response with the time it was sent (Israel time), no names. Nothing in this system ever deletes or overwrites answers; closing the survey removes only the list of names.`),
           h('p', {}, 'Safety copies: while the survey is open, a CSV of the answers is emailed to the school in every hour that brings new answers. Closing adds a dated copy of the answers as a new tab and emails the CSV again; Dairy School → Back up answers now in the Sheet does the same at any time. Google also keeps the Sheet’s version history. Download the CSV above as your own copy.')),
         h('div', { class: 'panel defs' },
           h('h2', {}, 'How the numbers are calculated'),

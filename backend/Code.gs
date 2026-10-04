@@ -9,7 +9,7 @@
  *   Seminars          one row per seminar (id, titles, dates, status, guide key…)
  *   <id> · Items      the questions, in order (edit freely until the survey opens)
  *   <id> · Names      participant names (deleted when the survey closes)
- *   <id> · Answers    one row per response: no name, no time, random row order
+ *   <id> · Answers    one row per response: no name, random row order; the last column is the time it was sent
  *   <id> · English    comment translations, filled when the survey closes
  *   <id> · Answers · <date>  dated copies made at close and by "Back up answers now"
  * Script properties
@@ -60,6 +60,7 @@ function doPost(e) {
       case 'removeName': return removeName_(p.s, p.key, p.nameId);
       case 'swapName': return swapName_(p.s, p.key, p.wrongId, p.realId);
       case 'saveDraft': return saveDraft_(p);
+      case 'deleteSeminar': return deleteSeminar_(p.s, p.key);
       default: return { ok: false, code: 'INVALID' };
     }
   });
@@ -172,7 +173,8 @@ function answersHead_(cfg) {
   return ['response'].concat(
     cfg.items.map(function (it) { return it.no + '. ' + it.label.en; }),
     cfg.items.map(function (it) { return 'Comment ' + it.no; }),
-    cfg.openQuestions.map(function (q) { return q.label.en; }));
+    cfg.openQuestions.map(function (q) { return q.label.en; }),
+    ['Sent (Israel time)']);
 }
 
 function answersSheet_(id, cfg) {
@@ -283,6 +285,7 @@ function submit_(p) {
     var comments = p.comments || {}, open = p.open || {};
     cfg.items.forEach(function (it) { values.push(asText_(cleanText_(comments[it.id], 1000))); });
     cfg.openQuestions.forEach(function (q) { values.push(asText_(cleanText_(open[q.id], 2000))); });
+    values.push(asText_(Utilities.formatDate(new Date(), localZone_(), 'yyyy-MM-dd HH:mm:ss'))); // when it was sent
 
     // Random position: row order says nothing about who answered when.
     var last = sheet.getLastRow();
@@ -389,7 +392,8 @@ function swapName_(id, key, wrongId, realId) {
 function readResponses_(id, cfg) {
   var sh = tab_(id, 'Answers');
   if (!sh || sh.getLastRow() < 2) return [];
-  var width = 1 + cfg.items.length * 2 + cfg.openQuestions.length;
+  // ratings, comments, open questions, then the time sent (tabs made before it had that column are read as far as they go)
+  var width = Math.min(1 + cfg.items.length * 2 + cfg.openQuestions.length + 1, sh.getLastColumn());
   var values = sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues();
   return values.filter(function (r) { return r[0] !== '' && r[0] != null; }).map(function (r) {
     var o = { answers: {}, comments: {}, open: {} }, c = 1;
@@ -400,6 +404,8 @@ function readResponses_(id, cfg) {
     });
     cfg.items.forEach(function (it) { var t = String(r[c++] || '').trim(); if (t) o.comments[it.id] = t; });
     cfg.openQuestions.forEach(function (q) { var t = String(r[c++] || '').trim(); if (t) o.open[q.id] = t; });
+    var sent = String(r[c++] || '').trim();
+    if (sent) o.sentAt = sent;
     return o;
   });
 }
@@ -489,6 +495,36 @@ function deleteNames_(id, names) {
   names.forEach(function (n) { props_().deleteProperty(usedKey_(id, n.id)); });
   var sh = tab_(id, 'Names');
   if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+}
+
+// ---------------------------------------------------------------- test seminars
+// A test seminar (id containing "test", or the "sample" that First setup makes) can be removed
+// with the staff passcode, so the list is clean before a real seminar. A real seminar is refused:
+// nothing here can delete real answers.
+function isTestId_(id) { return /test/.test(String(id)) || String(id) === 'sample'; }
+
+function deleteSeminar_(id, key) {
+  if (!isAdmin_(key)) return { ok: false, code: 'UNAUTHORIZED' };
+  var row = seminarRow_(id);
+  if (!row) return { ok: false, code: 'NOT_FOUND' };
+  if (!isTestId_(id)) return { ok: false, code: 'INVALID', problem: 'only a test seminar can be deleted' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, code: 'BUSY' };
+  try {
+    var b = book_(), removed = [];
+    b.getSheets().forEach(function (sh) {
+      if (sh.getName().indexOf(id + ' · ') === 0) { removed.push(sh.getName()); b.deleteSheet(sh); }
+    });
+    b.getSheetByName(SEMINARS).deleteRow(row._row);
+    var props = props_();
+    props.getKeys().forEach(function (k) {
+      if (k.indexOf('used:' + id + ':') === 0 || k === 'backedUp:' + id || k === 'translate:' + id || k === 'translateTries:' + id) props.deleteProperty(k);
+    });
+    SpreadsheetApp.flush();
+    return { ok: true, id: id, tabs: removed };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------------------------------------------------------------- drafts

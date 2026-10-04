@@ -59,6 +59,8 @@ export class FakeBook {
   constructor() { this.sheets = []; }
   getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; }
   insertSheet(n) { const s = new FakeSheet(n); s.book = this; this.sheets.push(s); return s; }
+  getSheets() { return [...this.sheets]; }
+  deleteSheet(s) { const i = this.sheets.indexOf(s); if (i < 0) throw new Error('no such sheet'); if (this.sheets.length === 1) throw new Error('cannot delete the only sheet'); this.sheets.splice(i, 1); }
   getSpreadsheetTimeZone() { return this.tz || 'Asia/Jerusalem'; }
 }
 
@@ -96,7 +98,8 @@ export function makeEnv({ random } = {}) {
       formatDate: (d, tz, fmt) => {
         const day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
         if (!fmt || !fmt.includes('HH')) return day;
-        const time = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(/:/g, '.');
+        const sep = fmt.includes('HH:') ? ':' : '.'; // Sheets tab names use dots, the time sent uses colons
+        const time = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d).replace(/:/g, sep);
         return `${day} ${fmt.includes('ss') ? time : time.slice(0, 5)}`;
       },
     },
