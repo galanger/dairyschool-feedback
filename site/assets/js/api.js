@@ -6,6 +6,13 @@
 // INVALID, UNAUTHORIZED, LOCKED, SERVER.
 
 const TIMEOUT_MS = 45000;
+// Google sometimes loses a reply after the request has run (its reply hop answers 404, or bounces
+// back as an empty request, which the backend reports as LOST). Every action may safely be sent
+// again (answers and new names carry their own ids, the rest are idempotent), so these are retried
+// quietly before a page shows an error. A timeout is not retried: 45 s is long enough to wait.
+const RETRIES = 2;
+const RETRY_ON = ['LOST', 'SERVER', 'NETWORK'];
+const newNameId = () => `a${(globalThis.crypto?.randomUUID?.() || `${Math.random()}${Date.now()}`).replace(/[^0-9a-f]/g, '').slice(0, 12)}`;
 
 export function createApi(cfg) {
   return cfg.backendUrl ? remoteApi(cfg.backendUrl) : mockApi(cfg);
@@ -14,6 +21,15 @@ export function createApi(cfg) {
 // ---------- Remote (Apps Script web app) ----------
 function remoteApi(url) {
   async function call(method, params) {
+    let out;
+    for (let attempt = 0; attempt <= RETRIES; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
+      out = await once(method, params);
+      if (out.ok || !RETRY_ON.includes(out.code)) break;
+    }
+    return out.code === 'LOST' ? { ...out, code: 'NETWORK' } : out;
+  }
+  async function once(method, params) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
@@ -44,7 +60,7 @@ function remoteApi(url) {
     getResults: (seminar, key) => call('POST', { action: 'results', s: seminar, key }),
     setStatus: (seminar, key, status) => call('POST', { action: 'status', s: seminar, key, status }),
     listSeminars: (key) => call('POST', { action: 'seminars', key }),
-    addName: (seminar, key, name) => call('POST', { action: 'addName', s: seminar, key, ...name }),
+    addName: (seminar, key, name) => call('POST', { action: 'addName', s: seminar, key, nameId: newNameId(), ...name }),
     removeName: (seminar, key, nameId) => call('POST', { action: 'removeName', s: seminar, key, nameId }),
     swapName: (seminar, key, wrongId, realId) => call('POST', { action: 'swapName', s: seminar, key, wrongId, realId }),
   };
@@ -142,6 +158,11 @@ function mockApi(cfg) {
       if (s.status === 'closed') return { ok: false, code: 'CLOSED' };
       const clean = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
       const name = { id: `a${Math.random().toString(36).slice(2, 10)}`, surname: clean(n.surname), given: clean(n.given), surnameCyr: clean(n.surnameCyr), givenCyr: clean(n.givenCyr) };
+      if (/^a[0-9a-z]{8,24}$/.test(n.nameId || '')) {
+        const had = s.names.find((x) => x.id === n.nameId);
+        if (had) return { ok: true, name: { ...had, answered: !!s.used[had.id] }, repeat: true };
+        name.id = n.nameId;
+      }
       if (!name.surname || /\d/.test(name.surname + name.given + name.surnameCyr + name.givenCyr)) return { ok: false, code: 'INVALID' };
       s.names.push(name);
       return { ok: true, name: { ...name, answered: false } };
@@ -153,7 +174,7 @@ function mockApi(cfg) {
       if (s.status === 'closed') return { ok: false, code: 'CLOSED' };
       if (s.used[nameId]) return { ok: false, code: 'NAME_TAKEN' };
       const i = s.names.findIndex((n) => n.id === nameId);
-      if (i < 0) return { ok: false, code: 'NAME_UNKNOWN' };
+      if (i < 0) return { ok: true, gone: true }; // removed already
       s.names.splice(i, 1);
       return { ok: true };
     }),
@@ -164,6 +185,7 @@ function mockApi(cfg) {
       if (s.status === 'closed') return { ok: false, code: 'CLOSED' };
       const has = (x) => s.names.some((n) => n.id === x);
       if (!has(wrongId) || !has(realId) || wrongId === realId) return { ok: false, code: 'NAME_UNKNOWN' };
+      if (!s.used[wrongId] && s.used[realId]) return { ok: true, repeat: true }; // done already
       if (!s.used[wrongId] || s.used[realId]) return { ok: false, code: 'INVALID' };
       delete s.used[wrongId]; s.used[realId] = true;
       return { ok: true };

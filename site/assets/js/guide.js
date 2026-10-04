@@ -128,7 +128,7 @@ export async function mount(root, { api, seminarId, key, cfg, inline = false, al
       if (!name.surname || /\d/.test(Object.values(name).join(''))) { addMsg.textContent = t('nameInvalid'); return; }
       addMsg.textContent = '…';
       const r = await api.addName(seminarId, key, name);
-      if (!r.ok) { addMsg.textContent = r.code === 'INVALID' ? t('nameInvalid') : t('nameErr'); return; }
+      if (!r.ok) { addMsg.textContent = r.code === 'INVALID' ? t('nameInvalid') : t('nameErr'); refresh(false); return; }
       Object.values(inputs).forEach((f) => { f.querySelector('input').value = ''; });
       addMsg.textContent = t('added', { name: fullName(r.name)[0] });
       refresh(false);

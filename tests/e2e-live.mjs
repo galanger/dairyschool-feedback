@@ -120,19 +120,19 @@ await step('live: two separate phones pick the same name; the second is told pol
   await arm(C.page); await C.page.click('#send'); await C.page.waitForSelector('.badge-ok');
   assert.equal((await state()).rows.length, 3);
 });
-await step('live: the answer arrives but the reply is lost; Try again does not count it twice', async () => {
+await step('live: the answer arrives but every reply is lost; the phone tries 3 times, then Try again; counted once', async () => {
   const D = await phone();
   await begin(D.page, 'Ткачук'); await finish(D.page, 4);
-  let dropped = false;
+  let posts = 0;
   await D.page.route(`${GAS}/exec`, async (route) => {
-    if (route.request().method() === 'POST' && !dropped) {
-      dropped = true;
-      await route.fetch({ maxRedirects: 0 }); // the server stores the answer…
-      return route.abort('connectionreset');  // …but the phone never hears back
+    if (route.request().method() === 'POST' && posts < 3) {
+      if (posts++ === 0) await route.fetch({ maxRedirects: 0 }); // the server stores the answer…
+      return route.abort('connectionreset');                     // …but the phone never hears back
     }
     return route.continue();
   });
-  await arm(D.page); await D.page.click('#send'); await D.page.waitForSelector('.alert-error');
+  await arm(D.page); await D.page.click('#send'); await D.page.waitForSelector('.alert-error', { timeout: 20000 });
+  assert.equal(posts, 3, 'sent 3 times quietly before showing the error');
   assert.equal((await state()).rows.length, 4, 'stored once already');
   await D.page.click('.alert-error button'); await D.page.waitForSelector('.badge-ok');
   assert.equal((await state()).rows.length, 4, 'retry did not add a second row');
@@ -260,6 +260,46 @@ await step('live: the staff page shows a draft as "not open yet" and opens it', 
   assert.match(await R.page.textContent('.rs-head .chip'), /^Open$/);
   assert.deepEqual(R.page.errors, []);
   await R.ctx.close();
+});
+await step('live: Google loses replies (bounced back empty, or a 404): guide, phone and staff page carry on by themselves', async () => {
+  const glitch = (n, mode = 'lost') => fetch(`${GAS}/__glitch?n=${n}&mode=${mode}`);
+  const d = await saveDraft('glitch-test');
+  const G = await phone();
+  await G.page.goto(viewUrl(BASE, 'guide', { s: d.id, key: d.guideKey })); await G.page.waitForSelector('.draft-panel');
+  await G.page.click('.draft-panel button:has-text("Open the survey now")'); await G.page.waitForSelector('text=Open it now?');
+  await glitch(1); // the open runs, its reply is lost
+  await G.page.click('.draft-panel .confirm .btn-primary'); await G.page.waitForSelector('.qr-box svg', { timeout: 20000 });
+  assert.equal(await G.page.locator('.onday-msg.err').count(), 0, 'no error shown');
+  const P = await phone();
+  await glitch(1); // the survey page's first request loses its reply
+  await P.page.goto(`${BASE}?s=${d.id}`); await P.page.waitForSelector('.hero h1', { timeout: 20000 });
+  await P.page.click('.bar-inner .btn-primary'); await P.page.waitForSelector('.names');
+  await P.page.locator('.name-opt', { hasText: 'Савчук' }).click();
+  await P.page.click('.bar-inner .btn-primary'); await P.page.waitForSelector('.item'); await settle(P.page);
+  await complete(P.page); await arm(P.page);
+  await glitch(1); // the answer is stored, its reply is lost
+  await P.page.click('#send'); await P.page.waitForSelector('.badge-ok', { timeout: 20000 });
+  assert.equal(await P.page.locator('.alert-error').count(), 0);
+  assert.equal((await state(d.id)).rows.length, 1, 'stored once');
+  await G.page.click('details.onday summary:has-text("Add a name")');
+  const inputs = G.page.locator('.onday-form input');
+  await inputs.nth(0).fill('Hlushko'); await inputs.nth(1).fill('Petro');
+  await glitch(1, '404'); // the name is added, its reply is a 404
+  await G.page.click('.onday-form button[type=submit]'); await G.page.waitForSelector('text=Added: Hlushko Petro', { timeout: 20000 });
+  assert.equal((await state(d.id)).names.filter((r) => r[1] === 'Hlushko').length, 1, 'added once');
+  const R = await phone();
+  await R.page.goto(viewUrl(BASE, 'staff', { s: d.id })); await R.page.waitForSelector('#pass');
+  await R.page.fill('#pass', ADMIN); await R.page.click('button[type=submit]'); await R.page.waitForSelector('text=still open');
+  await R.page.click('button:has-text("Close survey…")');
+  const mailBefore = (await state(d.id)).mail;
+  await glitch(1); // the close runs (backup made), its reply is lost
+  await R.page.click('.btn-danger'); await R.page.waitForSelector('.kpis', { timeout: 30000 });
+  assert.match(await R.page.textContent('.rs-head'), /1 response of 3 invited/);
+  assert.equal((await state(d.id)).mail, mailBefore + 1, 'one backup email');
+  // The simulated 404 has no CORS header (as a real lost reply may not): the browser logs that, the site retries.
+  const real = (x) => x.page.errors.filter((m) => !/echo\?t=gone|Access-Control-Allow-Origin\. Status code: 404/.test(m));
+  for (const [n, x] of [['guide', G], ['phone', P], ['staff', R]]) assert.deepEqual(real(x), [], `${n}: ${JSON.stringify(real(x))}`);
+  await G.ctx.close(); await P.ctx.close(); await R.ctx.close();
 });
 await step('live: no browser errors on any phone (CORS, JSON, scripts)', async () => {
   for (const p of [A, B, C]) assert.deepEqual(p.page.errors, []);

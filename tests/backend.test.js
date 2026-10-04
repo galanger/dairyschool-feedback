@@ -323,7 +323,7 @@ test('guide can remove a no-show but not someone who answered; the new person ca
   post(env, sub('n1', { i01: 6 }));
   assert.equal(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n1' }).code, 'NAME_TAKEN');
   assert.equal(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n3' }).ok, true);
-  assert.equal(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n3' }).code, 'NAME_UNKNOWN');
+  assert.deepEqual(post(env, { action: 'removeName', s: S, key: 'guide-key-1', nameId: 'n3' }), { ok: true, gone: true }, 'a repeated removal is fine');
   const p = post(env, { action: 'progress', s: S, key: 'guide-key-1' });
   assert.equal(p.total, 2); assert.deepEqual(p.missing.map((n) => n.id), ['n2']); assert.deepEqual(p.done.map((n) => n.id), ['n1']);
   const added = post(env, { action: 'addName', s: S, key: 'guide-key-1', surname: 'Moroz', given: 'Taras' }).name;
@@ -337,6 +337,8 @@ test('guide can fix a wrong tap: the wrong name is freed, the real person is mar
   assert.equal(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n2', realId: 'n3' }).code, 'INVALID', 'n2 has not answered');
   assert.equal(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n1', realId: 'n1' }).code, 'NAME_UNKNOWN');
   assert.equal(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n1', realId: 'n3' }).ok, true);
+  assert.equal(env.props.get(`used:${S}:n1`), undefined); assert.equal(env.props.get(`used:${S}:n3`), '1');
+  assert.deepEqual(post(env, { action: 'swapName', s: S, key: 'guide-key-1', wrongId: 'n1', realId: 'n3' }), { ok: true, repeat: true }, 'a repeated fix changes nothing');
   assert.equal(env.props.get(`used:${S}:n1`), undefined); assert.equal(env.props.get(`used:${S}:n3`), '1');
   assert.equal(post(env, sub('n1', { i01: 5 })).ok, true, 'the real n1 can now answer');
   assert.equal(env.book.getSheetByName(`${S} · Answers`).getLastRow(), 3, 'both answers kept');
@@ -558,4 +560,26 @@ test('save draft: staff passcode only, and bad input is refused with the reason'
   assert.equal(problem(draftBody({ seminar: { ...draftBody().seminar, default_lang: 'en', languages: 'uk' } })), 'INVALID default_lang');
   assert.equal(problem(draftBody()), 'ok');
   assert.equal(post(env, { action: 'seminars', key: STAFF }).seminars.length, 2, 'only the valid call wrote anything');
+});
+
+test('a lost reply: Google re-sends the request as an empty GET; the backend says LOST, and every action can be repeated safely', () => {
+  const env = makeEnv(); seed(env);
+  assert.deepEqual(get(env, {}), { ok: false, code: 'LOST' }, 'the bare address');
+  assert.equal(get(env, { action: 'nope' }).code, 'INVALID');
+  assert.deepEqual(JSON.parse(env.doPost({}).getContent()), { ok: false, code: 'LOST' });
+  assert.deepEqual(JSON.parse(env.doPost({ postData: { contents: '' } }).getContent()), { ok: false, code: 'LOST' });
+  // the same answer twice: stored once
+  const a = sub('n1', { i01: 6 });
+  assert.equal(post(env, a).ok, true); assert.deepEqual(post(env, a), { ok: true, repeat: true });
+  // the same new name twice (the site picks its id): one row
+  const add = { action: 'addName', s: S, key: 'guide-key-1', nameId: 'a1b2c3d4e5', surname: 'Viunenko', given: 'Ivan' };
+  const first = post(env, add), again = post(env, add);
+  assert.equal(first.ok, true); assert.equal(first.name.id, 'a1b2c3d4e5');
+  assert.equal(again.ok, true); assert.equal(again.repeat, true); assert.equal(again.name.id, 'a1b2c3d4e5');
+  assert.equal(env.book.getSheetByName(`${S} · Names`).data.filter((r) => r[0] === 'a1b2c3d4e5').length, 1);
+  assert.equal(post(env, { ...add, nameId: 'bad id!' }).ok, true, 'an unusable id gets a fresh one');
+  // closing twice: closed once, one backup
+  assert.equal(post(env, { action: 'status', s: S, key: STAFF, status: 'closed' }).ok, true);
+  assert.equal(post(env, { action: 'status', s: S, key: STAFF, status: 'closed' }).ok, true);
+  assert.equal(env.mail.length, 1, 'one backup email');
 });

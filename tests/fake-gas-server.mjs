@@ -30,17 +30,26 @@ export function seedEnv() {
 export function startServer(port = 8790) {
   let env = seedEnv();
   const pending = new Map();
+  // Google's lost replies, on demand: the request runs, then its reply hop bounces back to the bare
+  // address (which arrives empty: LOST), or the reply is simply gone (404).
+  let glitch = { n: 0, mode: 'lost' };
   const cors = { 'Access-Control-Allow-Origin': '*' };
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
     await new Promise((r) => setTimeout(r, 120)); // Apps Script is never instant
     if (req.method === 'OPTIONS') { res.writeHead(200, { Allow: 'HEAD, GET, POST' }); return res.end(); }
     if (url.pathname === '/exec') {
+      const bare = req.method === 'GET' && !url.search;
       let out;
       if (req.method === 'GET') out = env.doGet({ parameter: Object.fromEntries(url.searchParams) }).getContent();
       else {
         const body = await new Promise((r) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => r(b)); });
         out = env.doPost({ postData: { contents: body, type: req.headers['content-type'] } }).getContent();
+      }
+      if (glitch.n > 0 && !bare) {
+        glitch.n--;
+        res.writeHead(302, { ...cors, Location: glitch.mode === '404' ? `http://127.0.0.1:${port}/echo?t=gone` : `http://127.0.0.1:${port}/exec` });
+        return res.end();
       }
       const token = randomUUID();
       pending.set(token, out);
@@ -55,7 +64,11 @@ export function startServer(port = 8790) {
       return res.end(out);
     }
     // test helpers
-    if (url.pathname === '/__reset') { env = seedEnv(); res.writeHead(200, cors); return res.end('ok'); }
+    if (url.pathname === '/__reset') { env = seedEnv(); glitch = { n: 0, mode: 'lost' }; res.writeHead(200, cors); return res.end('ok'); }
+    if (url.pathname === '/__glitch') {
+      glitch = { n: Number(url.searchParams.get('n') || 1), mode: url.searchParams.get('mode') || 'lost' };
+      res.writeHead(200, cors); return res.end('ok');
+    }
     if (url.pathname === '/__state') {
       const id = url.searchParams.get('s') || SEM;
       const answers = env.book.getSheetByName(`${id} · Answers`);

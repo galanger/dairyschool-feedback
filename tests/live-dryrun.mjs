@@ -23,15 +23,27 @@ const cfgText = readFileSync(new URL('../site/config.js', import.meta.url), 'utf
 const BACKEND = process.env.BACKEND || cfgText.match(/backendUrl:\s*'([^']+)'/)[1];
 
 const results = [];
+const devicesOnScreen = [];
 async function step(name, fn) {
   const t0 = Date.now();
   try { await fn(); results.push(['PASS', name, `${((Date.now() - t0) / 1000).toFixed(0)} s`]); }
-  catch (e) { results.push(['FAIL', name, e.message.split('\n').slice(0, 3).join(' | ')]); }
+  catch (e) {
+    results.push(['FAIL', name, e.message.split('\n').slice(0, 3).join(' | ')]);
+    for (const [n, p] of devicesOnScreen) await p.screenshot({ path: `${OUT}/FAIL-${results.length}-${n}.png`, fullPage: true }).catch(() => {});
+  }
 }
 const settle = (p, ms = 400) => p.waitForTimeout(ms);
 const shot = (p, name, full = false) => p.screenshot({ path: `${OUT}/${name}.png`, fullPage: full });
 
-const config = async () => (await (await fetch(`${BACKEND}?action=config&s=${SEM}`, { redirect: 'follow', signal: AbortSignal.timeout(T) })).json()).seminar;
+// Google sometimes loses a reply (see api.js): ask again, as the site does.
+async function config() {
+  for (let i = 0; i < 4; i++) {
+    const r = await fetch(`${BACKEND}?action=config&s=${SEM}`, { redirect: 'follow', signal: AbortSignal.timeout(T) }).then((x) => x.json()).catch(() => null);
+    if (r?.ok) return r.seminar;
+    await new Promise((res) => setTimeout(res, 1500));
+  }
+  throw new Error('config: no reply from Google after 4 tries');
+}
 const sem = await config();
 assert.equal(sem.status, 'draft', 'start from a draft');
 const pages = sem.sections.map((s) => ({ ...s, items: sem.items.filter((it) => it.section === s.id) }));
@@ -51,6 +63,7 @@ const A = await open(wk, { ...devices['iPhone 13'] });          // Ukrainian, an
 const B = await open(cr, { ...devices['Galaxy S9+'] });         // English, a small Samsung screen (320 px wide)
 const G = await open(cr, { ...devices['Pixel 7'] });            // the guide
 const S = await open(cr, { viewport: { width: 1280, height: 900 } }); // the school, on a computer
+devicesOnScreen.push(['iphone', A], ['android', B], ['guide', G], ['staff', S]);
 
 // Answers every page of the survey; returns the page titles seen.
 async function answerAll(page, who, { lang, low = [], na = [], comments = {}, prefix }) {

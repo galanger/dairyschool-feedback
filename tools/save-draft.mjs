@@ -70,11 +70,22 @@ if (dry) process.exit(0);
 if (!KEY || !BACKEND) { console.error('PASSCODE and a backend address (site/config.js or BACKEND) are needed.'); process.exit(2); }
 
 // Google answers with a redirect to the reply; fetch follows it as a GET, like a browser.
-const res = await fetch(BACKEND, {
-  method: 'POST', body: JSON.stringify(body), redirect: 'follow',
-  headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: AbortSignal.timeout(120000),
-});
-const out = await res.json().catch(() => ({ ok: false, code: `HTTP ${res.status}` }));
+// Google sometimes loses that reply after the request has run: a rewrite (--id) is then simply
+// sent again, but a new draft is not, so it is never created twice.
+let out;
+for (let attempt = 1; attempt <= (id ? 3 : 1); attempt++) {
+  out = await fetch(BACKEND, {
+    method: 'POST', body: JSON.stringify(body), redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: AbortSignal.timeout(120000),
+  }).then((r) => r.json().catch(() => ({ ok: false, code: `HTTP ${r.status}` })), (e) => ({ ok: false, code: `NETWORK (${e.name})` }));
+  if (out.ok || !/^(LOST|HTTP|NETWORK)/.test(out.code)) break;
+}
+if (!out.ok && /^(LOST|HTTP|NETWORK)/.test(out.code)) {
+  console.error(id
+    ? `No reply from Google (${out.code}) after 3 tries. Running the same command again is safe.`
+    : `No reply from Google (${out.code}). The draft may have been created anyway: look at the seminar list on the staff page (or the Seminars tab) before running this again, and use --id to change it.`);
+  process.exit(1);
+}
 if (!out.ok) {
   console.error(`Refused: ${out.code}${out.problem ? ` (${out.problem})` : ''}`);
   process.exit(1);

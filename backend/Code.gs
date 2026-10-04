@@ -31,10 +31,14 @@ var MAX_BODY = 60000;
 
 // ---------------------------------------------------------------- web app
 
+// Google sometimes loses a reply: the request runs, but fetching its answer redirects back to
+// this address as a bare GET, which arrives here without any content. LOST tells the site so;
+// it then asks again, which every action allows (repeats are recognised, nothing counts twice).
 function doGet(e) {
   return respond_(function () {
     var p = (e && e.parameter) || {};
     if (p.action === 'config') return getConfig_(p.s);
+    if (!p.action) return { ok: false, code: 'LOST' };
     return { ok: false, code: 'INVALID' };
   });
 }
@@ -42,7 +46,8 @@ function doGet(e) {
 function doPost(e) {
   return respond_(function () {
     var raw = e && e.postData && e.postData.contents;
-    if (!raw || raw.length > MAX_BODY) return { ok: false, code: 'INVALID' };
+    if (!raw) return { ok: false, code: 'LOST' };
+    if (raw.length > MAX_BODY) return { ok: false, code: 'INVALID' };
     var p;
     try { p = JSON.parse(raw); } catch (err) { return { ok: false, code: 'INVALID' }; }
     switch (p.action) {
@@ -330,13 +335,19 @@ function addName_(id, key, p) {
       surnameCyr: cleanText_(p.surnameCyr, 60), givenCyr: cleanText_(p.givenCyr, 60) };
     if (!n.surname) return { ok: false, code: 'INVALID' };
     if (/\d/.test(n.surname + n.given + n.surnameCyr + n.givenCyr)) return { ok: false, code: 'INVALID' }; // never a passport number
+    // The site picks the new id, so a request repeated after a lost reply finds the row it added.
+    var want = String(p.nameId || '');
+    if (/^a[0-9a-z]{8,24}$/.test(want)) {
+      var had = names_(id).filter(function (x) { return x.id === want; })[0];
+      if (had) { had.answered = isUsed_(id, want); return { ok: true, name: had, repeat: true }; }
+    }
     var sh = tab_(id, 'Names');
     if (!sh) {
       sh = book_().insertSheet(id + ' · Names');
       sh.getRange(1, 1, 1, NAME_COLS.length).setValues([NAME_COLS]);
       sh.setFrozenRows(1);
     }
-    n.id = 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+    n.id = /^a[0-9a-z]{8,24}$/.test(want) ? want : 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
     sh.appendRow([n.id, n.surname, n.given, n.surnameCyr, n.givenCyr]);
     n.answered = false;
     return { ok: true, name: n };
@@ -347,12 +358,12 @@ function removeName_(id, key, nameId) {
   return withNames_(id, key, function () {
     if (isUsed_(id, nameId)) return { ok: false, code: 'NAME_TAKEN' }; // already answered: keep
     var sh = tab_(id, 'Names');
-    if (!sh || sh.getLastRow() < 2) return { ok: false, code: 'NAME_UNKNOWN' };
+    if (!sh || sh.getLastRow() < 2) return { ok: true, gone: true };
     var ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
     for (var r = 1; r < ids.length; r++) {
       if (String(ids[r][0]) === String(nameId)) { sh.deleteRow(r + 1); return { ok: true }; }
     }
-    return { ok: false, code: 'NAME_UNKNOWN' };
+    return { ok: true, gone: true }; // not on the list (any more): removed already, e.g. a repeated request
   });
 }
 
@@ -361,6 +372,7 @@ function swapName_(id, key, wrongId, realId) {
     var names = names_(id);
     var has = function (x) { return names.some(function (n) { return n.id === x; }); };
     if (!has(wrongId) || !has(realId) || wrongId === realId) return { ok: false, code: 'NAME_UNKNOWN' };
+    if (!isUsed_(id, wrongId) && isUsed_(id, realId)) return { ok: true, repeat: true }; // done already
     if (!isUsed_(id, wrongId) || isUsed_(id, realId)) return { ok: false, code: 'INVALID' };
     props_().deleteProperty(usedKey_(id, wrongId));
     props_().setProperty(usedKey_(id, realId), '1');
