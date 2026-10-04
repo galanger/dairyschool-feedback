@@ -10,6 +10,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     offline: false, closedWhileSending: false, confirmRestart: false,
   };
   let slowTimer = null;
+  let reloadTimer = null;
 
   // ---------- layout ----------
   const topbar = h('header', { class: 'topbar' });
@@ -154,6 +155,9 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     if (!seminar) {
       S.loadError = res.code === 'NOT_FOUND' ? 'notFound' : 'loadError';
       if (!S.lang) setLang(guessLang());
+      // Google is sometimes unreachable for a few minutes: besides the button, try again by itself.
+      clearTimeout(reloadTimer);
+      if (S.loadError === 'loadError') reloadTimer = setTimeout(() => { if (alive() && S.screen === 'error') load(); }, 15000);
       return show('error', { focus: false });
     }
     S.seminar = seminar;
@@ -199,7 +203,8 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
       h('h1', { tabindex: '-1' }, t(title)),
       h('p', {}, t(S.loadError)),
       h('p', { class: 'second-lang', lang: other }, h('b', {}, t2(title)), ' · ', t2(S.loadError)),
-      S.loadError === 'loadError' && h('button', { class: 'btn btn-secondary', type: 'button', onclick: load }, icon('refresh'), `${t('retryLoad')} · ${t2('retryLoad')}`));
+      S.loadError === 'loadError' && h('button', { class: 'btn btn-secondary', type: 'button', onclick: load }, icon('refresh'), `${t('retryLoad')} · ${t2('retryLoad')}`),
+      S.loadError === 'loadError' && h('p', { class: 'second-lang' }, `${t('autoRetry')} · ${t2('autoRetry')}`));
   }
 
   function welcome() {

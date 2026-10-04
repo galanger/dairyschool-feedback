@@ -301,6 +301,25 @@ await step('live: Google loses replies (bounced back empty, or a 404): guide, ph
   for (const [n, x] of [['guide', G], ['phone', P], ['staff', R]]) assert.deepEqual(real(x), [], `${n}: ${JSON.stringify(real(x))}`);
   await G.ctx.close(); await P.ctx.close(); await R.ctx.close();
 });
+await step('live: Google unreachable for longer: the guide and survey pages say so, then load by themselves', async () => {
+  const d = await saveDraft('outage-test');
+  const glitch = (n) => fetch(`${GAS}/__glitch?n=${n}&mode=lost`);
+  const G = await phone();
+  await glitch(6); // the guide page asks for the seminar and the progress at once: all 3 tries of both fail
+  await G.page.goto(viewUrl(BASE, 'guide', { s: d.id, key: d.guideKey }));
+  await G.page.waitForSelector('text=couldn’t load', { timeout: 20000 });
+  assert.match(await G.page.textContent('main'), /tries again by itself/);
+  assert.equal(await G.page.locator('main button:has-text("Try again")').count(), 1);
+  await G.page.waitForSelector('.draft-panel', { timeout: 30000 }); // no tap needed
+  const P = await phone();
+  await glitch(3);
+  await P.page.goto(`${BASE}?s=${d.id}`);
+  await P.page.waitForSelector('text=Немає з’єднання', { timeout: 20000 });
+  assert.match(await P.page.textContent('main'), /автоматично кожні 15 секунд/);
+  await P.page.waitForSelector('.hero h1', { timeout: 30000 }); // no tap needed
+  for (const [n, x] of [['guide', G], ['phone', P]]) assert.deepEqual(x.page.errors, [], `${n}: ${JSON.stringify(x.page.errors)}`);
+  await G.ctx.close(); await P.ctx.close();
+});
 await step('live: no browser errors on any phone (CORS, JSON, scripts)', async () => {
   for (const p of [A, B, C]) assert.deepEqual(p.page.errors, []);
 });

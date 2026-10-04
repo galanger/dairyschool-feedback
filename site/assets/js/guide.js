@@ -260,8 +260,8 @@ export async function mount(root, { api, seminarId, key, cfg, inline = false, al
 
   // Re-render only when something changed; otherwise just update the "updated … ago" line.
   let lastSig = null;
-  async function refresh(manual) {
-    const res = await api.getProgress(seminarId, key);
+  async function refresh(manual, pending = null) {
+    const res = await (pending || api.getProgress(seminarId, key));
     if (res.ok) { progress = res; updatedAt = Date.now(); failed = null; } else failed = res.code;
     const count = document.querySelector('.qr-full .qr-count');
     if (count && progress) {
@@ -278,11 +278,29 @@ export async function mount(root, { api, seminarId, key, cfg, inline = false, al
   document.documentElement.lang = lang;
   render();
   if (!key) return;
-  await loadScript('assets/vendor/qrcode.js');
-  const cfgRes = await api.getConfig(seminarId);
-  if (!cfgRes.ok) { swap(main, h('section', { class: 'screen center' }, h('p', {}, t(cfgRes.code === 'NOT_FOUND' ? 'notFound' : 'loadError')))); return; }
+  // The QR library, the seminar and the progress are asked for at once: each reply from Google can
+  // take several seconds, so the guide should not wait for them one after another.
+  const qrReady = loadScript('assets/vendor/qrcode.js');
+  let firstProgress = api.getProgress(seminarId, key);
+  // Google is sometimes unreachable for a few minutes: keep trying (every 15 s, or at once with the
+  // button) instead of leaving the guide on an error.
+  let cfgRes = await api.getConfig(seminarId);
+  while (!cfgRes.ok && cfgRes.code !== 'NOT_FOUND') {
+    await new Promise((resolve) => {
+      const wait = setTimeout(resolve, 15000);
+      swap(main, h('section', { class: 'screen center' }, h('p', {}, t('loadError')),
+        h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { clearTimeout(wait); resolve(); } }, icon('refresh'), t('retry')),
+        h('p', { class: 'hint' }, t('autoRetry'))));
+    });
+    if (!alive()) return;
+    swap(main, h('div', { class: 'loading', role: 'status' }, h('div', { class: 'spinner' }), t('loading')));
+    firstProgress = api.getProgress(seminarId, key);
+    cfgRes = await api.getConfig(seminarId);
+  }
+  if (!cfgRes.ok) { swap(main, h('section', { class: 'screen center' }, h('p', {}, t('notFound')))); return; }
   seminar = cfgRes.seminar;
-  await refresh(false);
+  await qrReady;
+  await refresh(false, firstProgress);
   const every = 30000;
   const stop = () => { clearInterval(timer); clearInterval(tick); document.removeEventListener('visibilitychange', onVis); };
   const onVis = () => { if (!alive()) return stop(); if (!document.hidden) refresh(false); };

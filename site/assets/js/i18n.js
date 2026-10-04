@@ -150,6 +150,7 @@ const STRINGS = {
     openConfirm: 'Open it now? From then on, everyone with the link can answer.',
     open: 'Open',
     openErr: 'Couldn’t open the survey. Check the internet connection and try again.',
+    autoRetry: 'It also tries again by itself every 15 seconds.',
   },
   uk: {
     langName: 'Українська',
@@ -297,6 +298,7 @@ const STRINGS = {
     openConfirm: 'Відкрити зараз? Відтоді кожен, хто має посилання, зможе відповісти.',
     open: 'Відкрити',
     openErr: 'Не вдалося відкрити опитування. Перевірте інтернет і спробуйте ще раз.',
+    autoRetry: 'Нова спроба також відбувається автоматично кожні 15 секунд.',
   },
 };
 
