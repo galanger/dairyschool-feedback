@@ -120,7 +120,8 @@ await step('guide page: "not open yet", no QR code; the guide opens the survey a
 
 await step('the iPhone that waited on the preview sends with its next tap; thank-you with the Google review ask', async () => {
   await A.click('#send'); await A.waitForSelector('.badge-ok', { timeout: T });
-  assert.equal(await A.locator('.review a').count(), 1);
+  assert.equal(await A.locator('.review a').getAttribute('href'), cfgText.match(/reviewUrl:\s*'([^']+)'/)[1], 'the review button carries the configured link');
+  assert.equal(await A.locator('.review a').getAttribute('target'), '_blank');
   assert.equal(await A.locator('.preview-flag').count(), 0);
   await shot(A, 'a-10-thanks');
 });
