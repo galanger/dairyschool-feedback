@@ -642,3 +642,17 @@ test('staff can list what the Sheet holds (tabs, rows, answers); read-only and p
   assert.equal(byName[`${S} · Answers`].head, 'response');
   assert.equal(byName[`${S} · Items`].answers, null);
 });
+
+test('staff can create the empty answers tab ahead of time; the first answer then fills it', () => {
+  const env = makeEnv(); seed(env);
+  env.book.getSheetByName('Seminars').data[1][9] = 'draft';
+  assert.equal(post(env, { action: 'prepareAnswers', s: S, key: 'guide-key-1' }).code, 'UNAUTHORIZED');
+  const r = post(env, { action: 'prepareAnswers', s: S, key: STAFF });
+  assert.deepEqual(r, { ok: true, tab: `${S} · Answers`, existed: false, answers: 0, columns: 14 });
+  assert.equal(env.book.getSheetByName(`${S} · Answers`).data[0].at(-1), 'Sent (Israel time)');
+  assert.equal(post(env, { action: 'prepareAnswers', s: S, key: STAFF }).existed, true, 'a repeat changes nothing');
+  assert.equal(post(env, { action: 'seminars', key: STAFF }).seminars[0].answered, 0);
+  post(env, { action: 'status', s: S, key: STAFF, status: 'open' });
+  assert.equal(post(env, sub('n1', { i01: 6 })).ok, true);
+  assert.equal(env.book.getSheetByName(`${S} · Answers`).getLastRow(), 2, 'header + the first answer');
+});

@@ -62,6 +62,7 @@ function doPost(e) {
       case 'saveDraft': return saveDraft_(p);
       case 'deleteSeminar': return deleteSeminar_(p.s, p.key);
       case 'tabs': return tabs_(p.key);
+      case 'prepareAnswers': return prepareAnswers_(p.s, p.key);
       default: return { ok: false, code: 'INVALID' };
     }
   });
@@ -496,6 +497,18 @@ function deleteNames_(id, names) {
   names.forEach(function (n) { props_().deleteProperty(usedKey_(id, n.id)); });
   var sh = tab_(id, 'Names');
   if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+}
+
+// Staff only: make the (empty) answers tab of a seminar now, with its header row, so the table is
+// visible before the first answer. Harmless to repeat; a draft's questions can still change (the
+// header of an empty tab is rewritten when the draft is saved again).
+function prepareAnswers_(id, key) {
+  if (!isAdmin_(key)) return { ok: false, code: 'UNAUTHORIZED' };
+  var row = seminarRow_(id);
+  if (!row) return { ok: false, code: 'NOT_FOUND' };
+  var had = !!tab_(id, 'Answers');
+  var sh = answersSheet_(id, seminarConfig_(row));
+  return { ok: true, tab: sh.getName(), existed: had, answers: countAnswers_(sh), columns: sh.getLastColumn() };
 }
 
 // Staff only, read-only: what the Sheet holds (every tab with its row count, and the number of
