@@ -17,6 +17,7 @@ export class FakeRange {
     return this;
   }
   setValue(v) { this.sheet.put(this.r, this.c, v); return this; }
+  getValue() { return this.getValues()[0][0]; }
   clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sheet.put(this.r + i, this.c + j, ''); return this; }
   createTextFinder(text) {
     const range = this;

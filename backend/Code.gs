@@ -61,6 +61,7 @@ function doPost(e) {
       case 'swapName': return swapName_(p.s, p.key, p.wrongId, p.realId);
       case 'saveDraft': return saveDraft_(p);
       case 'deleteSeminar': return deleteSeminar_(p.s, p.key);
+      case 'tabs': return tabs_(p.key);
       default: return { ok: false, code: 'INVALID' };
     }
   });
@@ -495,6 +496,18 @@ function deleteNames_(id, names) {
   names.forEach(function (n) { props_().deleteProperty(usedKey_(id, n.id)); });
   var sh = tab_(id, 'Names');
   if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+}
+
+// Staff only, read-only: what the Sheet holds (every tab with its row count, and the number of
+// answers in each answers tab), so the state can be checked without opening the Sheet.
+function tabs_(key) {
+  if (!isAdmin_(key)) return { ok: false, code: 'UNAUTHORIZED' };
+  return { ok: true, tabs: book_().getSheets().map(function (sh) {
+    var name = sh.getName(), last = sh.getLastRow();
+    return { name: name, rows: Math.max(0, last - 1), cols: sh.getLastColumn(),
+      answers: /· Answers/.test(name) ? countAnswers_(sh) : null,
+      head: last ? String(sh.getRange(1, 1).getValue()) : '' };
+  }) };
 }
 
 // ---------------------------------------------------------------- test seminars

@@ -628,3 +628,17 @@ test('a test seminar can be deleted with the staff passcode, with all its tabs a
   assert.equal(env.book.getSheetByName(`${S} · Answers`).getLastRow(), 2, 'its answer is untouched');
   assert.equal(post(env, { action: 'deleteSeminar', s: d.id, key: STAFF }).code, 'NOT_FOUND', 'a repeat is harmless');
 });
+
+test('staff can list what the Sheet holds (tabs, rows, answers); read-only and passcode only', () => {
+  const env = makeEnv(); seed(env);
+  post(env, sub('n1', { i01: 6 }));
+  assert.equal(post(env, { action: 'tabs', key: 'guide-key-1' }).code, 'UNAUTHORIZED');
+  const r = post(env, { action: 'tabs', key: STAFF });
+  assert.equal(r.ok, true);
+  const byName = Object.fromEntries(r.tabs.map((t) => [t.name, t]));
+  assert.equal(byName['Seminars'].rows, 1);
+  assert.equal(byName[`${S} · Names`].rows, 3);
+  assert.equal(byName[`${S} · Answers`].answers, 1);
+  assert.equal(byName[`${S} · Answers`].head, 'response');
+  assert.equal(byName[`${S} · Items`].answers, null);
+});
