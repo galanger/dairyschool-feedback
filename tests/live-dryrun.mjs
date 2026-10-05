@@ -167,10 +167,14 @@ await step('staff: progress while open, close (backup copy + email), results unl
   await shot(S, 's-01-open');
   await S.click('button:has-text("Close survey…")'); await S.click('.btn-danger');
   await S.waitForSelector('.kpis', { timeout: 180000 }); await settle(S, 800);
-  closeNote = (await S.textContent('.closed-note')).replace(/\s+/g, ' ');
-  assert.match(closeNote, /2 answers kept/); assert.match(closeNote, /dated copy/); assert.match(closeNote, /emailed to /);
-  const israelNow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).format(new Date()).replace(', ', ' ');
-  assert.ok(closeNote.includes(`Answers · ${israelNow}`), `backup tab named in Israel time (${israelNow})`);
+  closeNote = (await S.textContent('.closed-note', { timeout: T })).replace(/\s+/g, ' ');
+  assert.match(closeNote, /2 answers kept/);
+  if (/confirmation of the backup did not arrive/.test(closeNote)) console.log('   (Google lost the close reply; the page explained it)');
+  else {
+    assert.match(closeNote, /dated copy/); assert.match(closeNote, /emailed to /);
+    const israelNow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).format(new Date()).replace(', ', ' ');
+    assert.ok(closeNote.includes(`Answers · ${israelNow}`), `backup tab named in Israel time (${israelNow})`);
+  }
   assert.match(await S.textContent('.rs-head'), /2 responses of 3 invited/);
   await shot(S, 's-02-results', true);
 });

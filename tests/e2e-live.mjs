@@ -301,6 +301,32 @@ await step('live: Google loses replies (bounced back empty, or a 404): guide, ph
   for (const [n, x] of [['guide', G], ['phone', P], ['staff', R]]) assert.deepEqual(real(x), [], `${n}: ${JSON.stringify(real(x))}`);
   await G.ctx.close(); await P.ctx.close(); await R.ctx.close();
 });
+await step('live: every reply to the close is lost: the survey closes once, backs up once, and the staff page says what happened', async () => {
+  const d = await saveDraft('close-lost-test');
+  await fetch(`${GAS}/exec`, { method: 'POST', body: JSON.stringify({ action: 'status', s: d.id, key: ADMIN, status: 'open' }), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow' });
+  const P = await phone();
+  await P.page.goto(`${BASE}?s=${d.id}`); await P.page.waitForSelector('.hero h1');
+  await P.page.click('.bar-inner .btn-primary'); await P.page.waitForSelector('.names');
+  await P.page.locator('.name-opt', { hasText: 'Кравець' }).click();
+  await P.page.click('.bar-inner .btn-primary'); await P.page.waitForSelector('.item'); await settle(P.page);
+  await complete(P.page); await arm(P.page); await P.page.click('#send'); await P.page.waitForSelector('.badge-ok');
+  const R = await phone();
+  await R.page.goto(viewUrl(BASE, 'staff', { s: d.id })); await R.page.waitForSelector('#pass');
+  await R.page.fill('#pass', ADMIN); await R.page.click('button[type=submit]'); await R.page.waitForSelector('text=still open');
+  await R.page.click('button:has-text("Close survey…")');
+  const mailBefore = (await state(d.id)).mail;
+  await fetch(`${GAS}/__glitch?n=3&mode=lost&action=status`); // the close runs the first time; all three replies are lost
+  await R.page.click('.btn-danger'); await R.page.waitForSelector('.kpis', { timeout: 60000 }); await settle(R.page, 500);
+  const note = (await R.page.textContent('.closed-note')).replace(/\s+/g, ' ');
+  assert.match(note, /Survey closed\. 1 answer kept\./); assert.match(note, /confirmation of the backup did not arrive/);
+  assert.match(await R.page.textContent('.rs-head'), /1 response of 2 invited/);
+  const st = await state(d.id);
+  assert.equal(st.mail, mailBefore + 1, 'one backup email, not three');
+  assert.equal(st.tabs.filter((n) => n.startsWith(`${d.id} · Answers · `)).length, 1, 'one dated copy');
+  assert.equal(st.names.length, 0, 'names deleted once');
+  assert.deepEqual(R.page.errors, []);
+  await P.ctx.close(); await R.ctx.close();
+});
 await step('live: Google unreachable for longer: the guide and survey pages say so, then load by themselves', async () => {
   const d = await saveDraft('outage-test');
   const glitch = (n) => fetch(`${GAS}/__glitch?n=${n}&mode=lost`);

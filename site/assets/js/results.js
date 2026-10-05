@@ -143,6 +143,7 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
 
   // ---------- survey still open ----------
   function renderOpen(res) {
+    justClosed = null; // still open: a close that was attempted did not go through
     const sem = res.seminar;
     const total = res.invited || sem.names?.length || 0;
     const confirmBox = h('div', { class: 'closing', hidden: true },
@@ -153,10 +154,11 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
           const btn = e.currentTarget; // (currentTarget is null after the await)
           btn.disabled = true;
           const r = await api.setStatus(current, key, 'closed');
-          if (r.ok) { justClosed = r.backup || {}; const l = await api.listSeminars(key); if (l.ok) seminars = l.seminars; showSeminar(current); return; }
+          // A reply without backup details means the first attempt closed it and its reply was lost.
+          if (r.ok) { justClosed = r.backup || { lostReply: true }; const l = await api.listSeminars(key); if (l.ok) seminars = l.seminars; showSeminar(current); return; }
           // No reply, or the server was busy: the close may still have gone through, so look again
-          // instead of guessing (the page then shows either the dashboard or this panel again).
-          if (['TIMEOUT', 'NETWORK', 'BUSY'].includes(r.code)) { showSeminar(current); return; }
+          // instead of guessing (the page then shows either the dashboard, with a note, or this panel again).
+          if (['TIMEOUT', 'NETWORK', 'BUSY'].includes(r.code)) { justClosed = { lostReply: true }; showSeminar(current); return; }
           btn.disabled = false;
           confirmBox.append(h('p', { class: 'err' }, 'Couldn’t close the survey. Try again.'));
         } }, 'Close survey'),
@@ -197,8 +199,10 @@ export async function mount(root, { api, seminarId, demo, inline = false }) {
     function closedNote() {
       const b = justClosed; justClosed = null;
       const parts = [`Survey closed. ${plural(b.rows ?? A.responses, 'answer')} kept.`];
-      if (b.snapshot) parts.push(`A dated copy of the answers was added to the Sheet (“${b.snapshot}”).`);
-      if (b.emailedTo) parts.push(`A CSV copy was emailed to ${b.emailedTo}.`);
+      if (b.lostReply) parts.push('Google’s confirmation of the backup did not arrive (slow connection), but the dated copy and the CSV email are part of closing: see “Where the answers live” in the Data tab and the tabs of the Sheet.');
+      else if (b.snapshot) parts.push(`A dated copy of the answers was added to the Sheet (“${b.snapshot}”).`);
+      if (b.lostReply) { /* said above */ }
+      else if (b.emailedTo) parts.push(`A CSV copy was emailed to ${b.emailedTo}.`);
       else if (demo) parts.push('On the live system a CSV copy is also emailed to the school.');
       else if (b.emailError) parts.push('The backup email could not be sent; download the CSV from the Data tab.');
       return h('div', { class: 'panel closed-note', role: 'status' },

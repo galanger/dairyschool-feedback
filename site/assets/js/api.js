@@ -6,6 +6,7 @@
 // INVALID, UNAUTHORIZED, LOCKED, SERVER.
 
 const TIMEOUT_MS = 45000;
+const CLOSE_TIMEOUT_MS = 120000; // closing backs up, emails and translates: give a slow Google time to answer
 // Google sometimes loses a reply after the request has run (its reply hop answers 404, or bounces
 // back as an empty request, which the backend reports as LOST). Every action may safely be sent
 // again (answers and new names carry their own ids, the rest are idempotent), so these are retried
@@ -23,18 +24,18 @@ export function createApi(cfg) {
 
 // ---------- Remote (Apps Script web app) ----------
 function remoteApi(url) {
-  async function call(method, params) {
+  async function call(method, params, timeoutMs = TIMEOUT_MS) {
     let out;
     for (let attempt = 0; attempt <= RETRIES; attempt++) {
       if (attempt) await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
-      out = await once(method, params);
+      out = await once(method, params, timeoutMs);
       if (out.ok || !RETRY_ON.includes(out.code)) break;
     }
     return out.code === 'LOST' ? { ...out, code: 'NETWORK' } : out;
   }
-  async function once(method, params) {
+  async function once(method, params, timeoutMs) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       let res;
       if (method === 'GET') {
@@ -61,7 +62,7 @@ function remoteApi(url) {
     submit: (payload) => call('POST', { action: 'submit', ...payload }),
     getProgress: (seminar, key) => call('POST', { action: 'progress', s: seminar, key }),
     getResults: (seminar, key) => call('POST', { action: 'results', s: seminar, key }),
-    setStatus: (seminar, key, status) => call('POST', { action: 'status', s: seminar, key, status }),
+    setStatus: (seminar, key, status) => call('POST', { action: 'status', s: seminar, key, status }, status === 'closed' ? CLOSE_TIMEOUT_MS : TIMEOUT_MS),
     listSeminars: (key) => call('POST', { action: 'seminars', key }),
     addName: (seminar, key, name) => call('POST', { action: 'addName', s: seminar, key, nameId: newNameId(), ...name }),
     removeName: (seminar, key, nameId) => call('POST', { action: 'removeName', s: seminar, key, nameId }),
