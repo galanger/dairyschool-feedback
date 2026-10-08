@@ -3,7 +3,9 @@ import { h, icon, store, uuid, reducedMotion, swap, append, softFocus } from './
 import { makeT, formatDates, pick } from './i18n.js';
 
 export function mount(root, { api, seminarId, cfg, configRequest = null, alive = () => true }) {
-  const K = { draft: `dsf:${seminarId}:draft`, done: `dsf:${seminarId}:done`, cfg: `dsf:${seminarId}:cfg`, lang: 'dsf:lang' };
+  // The language choice is remembered for this seminar only, so a phone used for an earlier seminar
+  // (or for testing) still opens the next survey in its own default language.
+  const K = { draft: `dsf:${seminarId}:draft`, done: `dsf:${seminarId}:done`, cfg: `dsf:${seminarId}:cfg`, lang: `dsf:${seminarId}:lang` };
   const S = {
     seminar: null, lang: null, userLang: store.get(K.lang), t: makeT('en'),
     screen: 'loading', sectionIndex: 0, draft: null, sending: false, error: null, loadError: null,
@@ -25,6 +27,11 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
     document.documentElement.lang = lang;
   }
   const guessLang = () => S.userLang || (/^(uk|ru)\b/i.test(navigator.language || '') ? 'uk' : 'en');
+  // A new person on this phone starts in the seminar's language, whatever the previous one chose.
+  function resetLang() {
+    S.userLang = null; store.del(K.lang);
+    if (S.seminar) setLang(S.seminar.defaultLang || (S.seminar.languages || ['en'])[0]);
+  }
 
   function renderTopbar() {
     const langs = S.seminar?.languages || [];
@@ -693,7 +700,7 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
   function anotherPerson() {
     return [h('hr', { class: 'divider' }),
       h('p', {}, t('anotherQ')),
-      h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { store.del(K.done); store.del(K.draft); newDraft(); show('welcome'); } }, t('anotherBtn'))];
+      h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { store.del(K.done); store.del(K.draft); newDraft(); resetLang(); show('welcome'); } }, t('anotherBtn'))];
   }
   // A short ask for a Google review, one tap to Google's own review box (only when a link is set).
   function reviewAsk() {

@@ -503,7 +503,7 @@ async function patchState(page, fn) {
   });
   await step('skip a whole page, finish the rest: Send lists what is missing and jumps back to it', async () => {
     // same demo state (Kravchenko has answered); a new person, and the remembered English switch cleared
-    await page.evaluate(() => { localStorage.removeItem('dsf:demo:done'); localStorage.removeItem('dsf:lang'); });
+    await page.evaluate(() => { localStorage.removeItem('dsf:demo:done'); localStorage.removeItem('dsf:demo:lang'); });
     await start(page, 'Лисенко');
     // page 1: rate nothing, go on anyway
     await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.soft');
@@ -525,8 +525,12 @@ async function patchState(page, fn) {
     assert.equal(await page.locator('.soft').count(), 0, 'complete pages pass without a note');
     await arm(page); await page.click('#send'); await page.waitForSelector('.badge-ok');
   });
-  await step('a second person on the same phone starts with nobody pre-selected and the first one greyed', async () => {
+  await step('a second person on the same phone starts in Ukrainian, with nobody pre-selected and the first one greyed', async () => {
+    await page.click('.lang button:has-text("EN")'); await settle(page, 300); // the first person had switched to English
+    assert.equal(await page.getAttribute('html', 'lang'), 'en');
     await page.click('main .btn-secondary'); await page.waitForSelector('.hero');
+    assert.equal(await page.getAttribute('html', 'lang'), 'uk', 'a new person starts in the seminar’s language');
+    assert.match(await page.textContent('.bar-inner .btn-primary'), /Почати/);
     await page.click('.bar-inner .btn-primary'); await page.waitForSelector('.names');
     assert.equal(await page.locator('.name-opt.is-selected').count(), 0);
     assert.ok(await page.locator('.name-opt', { hasText: 'Kravchenko' }).evaluate((el) => el.classList.contains('is-done')));
