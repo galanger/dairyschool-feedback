@@ -60,7 +60,7 @@ await step('phone A answers as Мельник with a comment; the answer is stor
   await begin(A.page, 'Мельник');
   await finish(A.page, 6, 'Дуже добре, дякуємо.');
   await A.page.click('#send'); await A.page.waitForSelector('.badge-ok', { timeout: 60000 });
-  assert.equal(await A.page.locator('.review a').count(), 1);
+  assert.equal(await A.page.locator('.review a.review-btn').count(), 1);
   assert.deepEqual(A.page.errors, []);
 });
 await step('phone B cannot answer as Мельник again, but can as Гнатюк', async () => {

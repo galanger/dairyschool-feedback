@@ -184,11 +184,12 @@ const small = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 3, isM
     await page.click('.alert-error button');
     await page.waitForSelector('.badge-ok'); await settle(page);
     // the thank-you screen asks for a Google review: one tap, opens in a new tab, https only
-    const review = page.locator('.review a');
+    const review = page.locator('.review a.review-btn');
     assert.equal(await review.count(), 1, 'Google review ask on the thank-you screen');
+    assert.equal(await page.locator('.review a.review-alt').count(), 1, 'the smaller Facebook link under it');
     assert.equal(await review.getAttribute('target'), '_blank');
     assert.match(await review.getAttribute('href'), /^https:\/\//);
-    assert.equal(await page.locator('main a').count(), 1, 'the review link is the only link a participant ever sees');
+    assert.equal(await page.locator('main a').count(), 2, 'the two review links are the only links a participant ever sees');
     assert.match(await page.textContent('main h1'), /Дякуємо/);
     await page.screenshot({ path: `${OUT}/09-thanks-360.png` });
     await axe(page, 'thanks');

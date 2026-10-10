@@ -711,7 +711,8 @@ export function mount(root, { api, seminarId, cfg, configRequest = null, alive =
       h('div', { class: 'stars', 'aria-hidden': 'true' }, star(), star(), star(), star(), star()),
       h('h2', {}, t('reviewTitle')),
       h('p', {}, t('reviewText')),
-      h('a', { class: 'btn btn-primary review-btn', href: url, target: '_blank', rel: 'noopener' }, t('reviewBtn')));
+      h('a', { class: 'btn btn-primary review-btn', href: url, target: '_blank', rel: 'noopener' }, t('reviewBtn')),
+      /^https:\/\//.test(cfg.facebookReviewUrl || '') && h('a', { class: 'linkbtn review-alt', href: cfg.facebookReviewUrl, target: '_blank', rel: 'noopener' }, t('reviewAlso')));
   }
   function thanks() {
     setBar();

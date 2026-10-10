@@ -11,7 +11,7 @@ const GAS = 'http://127.0.0.1:8790';
 const server = await startServer(8790);
 const browser = await launch();
 const results = [];
-const CONFIG = `window.DSF_CONFIG = { backendUrl: '${GAS}/exec', publicUrl: 'https://feedback.example/', defaultSeminar: null, reviewUrl: 'https://g.page/r/example/review' };`;
+const CONFIG = `window.DSF_CONFIG = { backendUrl: '${GAS}/exec', publicUrl: 'https://feedback.example/', defaultSeminar: null, reviewUrl: 'https://g.page/r/example/review', facebookReviewUrl: 'https://www.facebook.com/example/reviews/' };`;
 
 async function phone() {
   // The page's real Content-Security-Policy stays ON (every engine enforces it). The only change:
@@ -98,7 +98,8 @@ await step('live: full answer with a Ukrainian comment reaches the Sheet, withou
   await first.locator('textarea').fill('=1+1 замало практики');
   await finish(A.page, 6);
   await arm(A.page); await A.page.click('#send'); await A.page.waitForSelector('.badge-ok');
-  assert.equal(await A.page.locator('.review a').getAttribute('href'), 'https://g.page/r/example/review', 'review link from the site config');
+  assert.equal(await A.page.locator('.review a.review-alt').getAttribute('href'), 'https://www.facebook.com/example/reviews/', 'the Facebook link under it');
+  assert.equal(await A.page.locator('.review a.review-btn').getAttribute('href'), 'https://g.page/r/example/review', 'review link from the site config');
   const st = await state();
   assert.equal(st.rows.length, 1);
   assert.equal(st.used.length, 1);

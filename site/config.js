@@ -6,4 +6,6 @@ window.DSF_CONFIG = {
   // Google's write-a-review link for the school's listing (Place ID derived from the listing ids and checked in
   // Google Maps, 5 Oct 2026): opens the star rating directly for a signed-in Google user. Empty = no ask.
   reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJAQC8vLJMHBURiKJJkpa4H_M',
+  // A second, smaller link on the thank-you screen (owner's ask, 10 Oct 2026). Empty = no second link.
+  facebookReviewUrl: 'https://www.facebook.com/IsraeliDairySchool/reviews/',
 };

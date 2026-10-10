@@ -13,7 +13,7 @@ const css = readFileSync('site/assets/css/app.css', 'utf8') + readFileSync('site
 const qr = readFileSync('site/assets/vendor/qrcode.js', 'utf8');
 const html = `<title>Dairy School Survey</title>
 <style>${css}</style>
-<script>window.DSF_CONFIG={backendUrl:null,publicUrl:null,defaultSeminar:'demo',reviewUrl:'https://search.google.com/local/writereview?placeid=ChIJAQC8vLJMHBURiKJJkpa4H_M'};window.DSF_INLINE=true;</script>
+<script>window.DSF_CONFIG={backendUrl:null,publicUrl:null,defaultSeminar:'demo',reviewUrl:'https://search.google.com/local/writereview?placeid=ChIJAQC8vLJMHBURiKJJkpa4H_M',facebookReviewUrl:'https://www.facebook.com/IsraeliDairySchool/reviews/'};window.DSF_INLINE=true;</script>
 <script>${qr}</script>
 <div id="app"></div>
 <script>${js.replaceAll('</script', '<\\/script')}</script>
