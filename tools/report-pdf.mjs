@@ -104,8 +104,8 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>
 body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.38; margin: 0; }
 .page { break-before: page; } .page.flow { break-before: auto; margin-top: 18px; }
 h2, h3, h4 { break-after: avoid; }
-.top { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--brand); padding-bottom: 7px; margin-bottom: 12px; }
-.top img { height: 34px; } .kind { font-weight: 700; color: var(--brand-strong); letter-spacing: .04em; text-transform: uppercase; font-size: 9.5pt; }
+.hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--brand); padding-bottom: 7px; margin-bottom: 12px; }
+.hdr img { height: 34px; } .kind { font-weight: 700; color: var(--brand-strong); letter-spacing: .04em; text-transform: uppercase; font-size: 9.5pt; }
 h1 { font-size: 19pt; margin: 0 0 2px; line-height: 1.2; } .sub { margin: 0 0 12px; color: var(--ink2); font-size: 11pt; }
 .status { display: flex; gap: 10px; align-items: flex-start; background: ${closed ? 'var(--wash2)' : 'var(--warnwash)'}; border: 1px solid ${closed ? 'var(--line)' : 'var(--warnline)'}; border-radius: 8px; padding: 9px 12px; font-size: 10pt; color: ${closed ? 'var(--ink)' : 'var(--warn)'}; margin-bottom: 14px; }
 .status .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: ${closed ? 'var(--ink3)' : '#e0a100'}; margin-top: 5px; }
@@ -136,7 +136,7 @@ table.rt { width: 100%; border-collapse: collapse; font-size: 8.7pt; } .rt th { 
 </style></head><body>
 
 <section class="page flow" style="margin-top:0">
-<div class="top"><img src="${logo}" alt=""><span class="kind">Seminar feedback · ${kind}</span></div>
+<div class="hdr"><img src="${logo}" alt=""><span class="kind">Seminar feedback · ${kind}</span></div>
 <h1>${esc(sem.title_en)}</h1>
 <p class="sub">${esc(sem.subtitle_en || sem.report_name || '')}${dates ? ` · ${dates}` : ''}</p>
 <div class="status"><span class="dot"></span><span>${statusLine}</span></div>
@@ -168,7 +168,7 @@ ${areaRows}
 <p class="caution">Quotes under the lower items come from people who rated that item 5 or less. Every comment, with the rating its writer gave, is on the following pages.</p>
 </section>
 
-<section class="page flow">
+<section class="page">
 <h2 style="margin-top:0">In their own words <small>the two closing questions · ${nOpen} answers</small></h2>
 ${openBlocks}
 </section>
