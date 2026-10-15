@@ -28,21 +28,29 @@ private/, site/assets/js/*.local.js, plus generated dist/, node_modules/, tests/
 tests/sim/shots) is fully covered by the bundle except the generated folders. The interim report PDF
 and the paper backup in private/ are byte-identical to the Downloads copies in the LiveHerz zip.
 
-## 2. Done on the new Mac so far
+## 2. Done on the new Mac so far (as of 15 Oct 2026, 18:00 Israel)
 
-- Repo cloned to ~/dairyschool-feedback (main at 0764125, tag present).
+- Repo cloned to ~/dairyschool-feedback (main at 0764125, tag present); this file is the only local change.
 - private/ → repo private/; clasp.json → backend/.clasp.json; clasprc.json → ~/.clasprc.json (0600);
   demo-2023.local.js → site/assets/js/. `git status --ignored` shows exactly those three ignored paths.
 - memory/*.md copied into this machine's Claude Code memory folder with a MEMORY.md index.
-- Not done yet (needs Gal or sudo): Xcode licence, Node, Chrome, poppler, gh login, the four shell
-  exports in ~/.zshrc, `npm install`, `check-setup.sh --live`.
+- Installed: Node 26 (same major as the old Mac; Node 24 LTS fails `npm test` because it no longer expands
+  the `tests/` directory argument), npm dependencies, Google Chrome (notarised build, Playwright launches
+  it with channel 'chrome'), clasp 3.4.1, gh 2.102.0 (not signed in yet), the four shell exports.
+- Verified: `npm test` 50/50; `tools/check-setup.sh --live` 27 ok, the 7 missing being gh sign-in, the
+  four poppler tools (Homebrew needs sudo, pending), and HEAD ≠ origin/main (this unpushed commit); the
+  backend config call answered ok on the second try (the first got Google's HTML hop); `status.sh` through
+  the bundled clasprc.json: open, 15 of 20, last answer 13 Oct 13:20 Israel, 20 names, i.e. the Sheet is
+  exactly as the bundle's README describes it.
+- Pending on the new Mac (needs Gal's password or browser): Xcode licence, Homebrew + poppler, gh login.
 
 ## 3. Questions for the old-Mac session — please confirm each
 
 - **Q1 — anything after 16:19 Israel on 15 Oct?** The transcript copy and the zip both end at the
-  re-zip. README-START-HERE.txt was edited later (17:27). Did the Dairy session do anything after
-  16:19: a change to the Sheet (replacement name added, the lost answer resolved, a close), a new
-  export or report, a commit, a memory edit, or a change to the bundle contents?
+  re-zip. README-START-HERE.txt was edited later (17:27). Verified from here at 17:51: the Sheet is
+  unchanged (open, 15 of 20, 20 names, last answer 13 Oct) and main is still 0764125. Remaining part of
+  the question: did the Dairy session write anything after 16:19 that exists only on the old Mac's disk
+  (a new export or report, a memory edit, a change to the bundle contents)?
 - **Q2 — the `claude/` folder.** docs/HANDOVER-NEW-MAC §7 lists `claude/` (old Mac's Claude Code
   settings) as part of the bundle, but the zip has no such folder. Was it dropped on purpose? The
   LiveHerz zip carries a 162-byte claude-settings.json (model, one plugin, theme). Is that all of it,
@@ -50,8 +58,9 @@ and the paper backup in private/ are byte-identical to the Downloads copies in t
 - **Q3 — GitHub token.** docs/HANDOVER-NEW-MAC §5.1 says the bundle README holds a token for
   `gh auth login --with-token`; README-PRIVATE says no token on purpose. Confirm: no token expected,
   browser login on the new Mac, and revoke the old Mac's GitHub CLI authorisation after.
-- **Q4 — clasprc.json validity.** Was there any `clasp login` / logout on the old Mac after 14:57
-  (the bundled file's time)? If yes, the bundled refresh token may be dead.
+- **Q4 — clasprc.json validity.** VERIFIED from the new Mac at 17:51 Israel: the bundled file reads the
+  Sheet. Please do NOT run `clasp logout` or revoke the Google third-party access on the old Mac: that
+  would kill the token this Mac now uses. Just delete the files there.
 - **Q5 — latest data.** Confirm the newest export is the 13 Oct 14:18 one (15 answers) and the newest
   report is the 13 Oct 14:18 PDF; nothing newer exists only on the old Mac (Downloads, Desktop, scratch).
 - **Q6 — anything outside the listed places?** README-PRIVATE says only ~/dairyschool-feedback
