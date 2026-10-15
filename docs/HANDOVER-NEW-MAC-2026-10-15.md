@@ -87,20 +87,42 @@ suites (`tests/run-all.sh`, `e2e.mjs`, `e2e-more.mjs`, `e2e-live.mjs`) need a co
 - Git: `main` = `origin/main` = the live site; backend @8 = repo; working tree clean after the handover
   commit. The last code change before the handover was the report tooling (commits 5bb399d, 1533f8a).
 
+**Update, 15 Oct afternoon (from the owner's group chat; names and message texts are in the bundle's README):**
+
+- One participant says she answered on day one but is not marked as answered. Her name has no answer on
+  the server. The code allows three causes: she never reached the final Send (only Send counts, and the
+  page then says "Thank you"); she pressed Send in the first minutes while the survey was still in
+  preview (the page then said "Not sent yet" and kept her answers on the phone); or she tapped someone
+  else's name (then her answers are in, under that name, and her phone says "You have already answered").
+  The owner was given a message asking her to reopen the link from the same chat on the same phone and
+  finish, or to report what the phone says. If it says "already answered", find out which name she
+  tapped and use the guide page's "fix a wrong tap" (mark her as answered, free the other name). Never
+  let her answer a second time.
+- One person on the list was not on the trip, and the person who came instead is not on the list. Gal
+  does not want anyone removed: add the replacement with the guide page's "add a name" (or the backend
+  `addName` action with the guide key) when Gal says go, and leave the absent person as a permanent
+  "missing". The list then has 21 names. For the report the total must stay 20 (the people who were
+  there): set the `invited` cell of the seminar's row in the `Seminars` tab to 20 by hand before building
+  (the report uses that cell whenever it is set), and set it to 20 again after the close, because the
+  close overwrites it with the names count.
+- Another participant is said to be unwilling to answer, so the realistic maximum is 19 of 20.
+
 ## 4. What comes next
 
-1. "Any news?" from Gal → run `status.sh` (read-only) and reply with: answered count, any new names with
+1. First, if it was not done on the old Mac: add the replacement name when Gal says go (§3 update), and
+   check whether the participant from the chat has answered since.
+2. "Any news?" from Gal → run `status.sh` (read-only) and reply with: answered count, any new names with
    their times, who is still missing, the last reply time, and whether the staff have closed.
-2. New answers → refresh the interim report (§5.3), replace the PDF in Downloads, `open -R` it.
-3. The staff close (from `staff.html` with the passcode, or the Sheet menu) → build the final report
+3. New answers → refresh the interim report (§5.3), replace the PDF in Downloads, `open -R` it.
+4. The staff close (from `staff.html` with the passcode, or the Sheet menu) → build the final report
    with the same recipe; the tool prints "Final report" when `Seminars.status` is `closed`, and the
    invited count comes from `Seminars.invited`, which the close writes before deleting the names. The
    staff page then also shows Google's machine translations (Comments tab, finished by a background
    trigger); the PDF uses our hand translations.
-4. Extras Gal may ask for: an insights memo for the owner; a nicer address
+5. Extras Gal may ask for: an insights memo for the owner; a nicer address
    `feedback.dairyschool.co.il` (one CNAME at the school's DNS on QUIC.cloud + a Pages custom domain);
    moving the Sheet and script to the school's own Google account (README → Deploy).
-5. After the seminar's wrap-up Gal wanted the clasp access revoked (`clasp logout`, then remove the app
+6. After the seminar's wrap-up Gal wanted the clasp access revoked (`clasp logout`, then remove the app
    under the Google account's third-party access). Not before the final report is delivered.
 
 ## 5. Recipes
@@ -115,6 +137,10 @@ npm install -g @google/clasp         # only needed for backend changes
 gh auth login                        # account galanger: pushes and Pages run checks
 ```
 
+On a brand-new Mac run `xcode-select --install` first (git, python3). After `gh auth login` run
+`gh auth setup-git`, so `git push` over https uses that login; if the browser login is not possible, the
+bundle's README holds a token for `gh auth login --with-token`. The Google side needs no local secret
+beyond `clasprc.json`: the Sheet and the Apps Script editor open in the browser with Gal's Gmail account.
 Also needed: Google Chrome (Playwright launches `channel: 'chrome'`), Node 20 or newer, python3.
 Then copy from the private bundle: `private/` → `~/dairyschool-feedback/private/`, `clasp.json` →
 `~/dairyschool-feedback/backend/.clasp.json`, `clasprc.json` → `~/.clasprc.json`, `demo-2023.local.js`
@@ -202,6 +228,12 @@ to be copied to the new Mac:
   (→ `site/assets/js/`).
 - `memory/`: the Claude Code memory files for this project and Gal's working rules (→ the new machine's
   `~/.claude/projects/<key>/memory/`, with one index line each in its `MEMORY.md`).
+- `sources/`: what the survey was built from: the owner's program files (`Draft_3_UVT_Program.docx`,
+  `UVT_Program_Final.docx`), the rooming list PDF, and the school's paper feedback form (`.docx`).
+- `claude-transcript/`: the full Claude Code transcript of the project session (one `.jsonl`, about
+  200 MB, every message and tool result since 25 Sep). A new session can read or grep it when a detail is
+  missing from this doc and the memory.
+- `claude/`: the old Mac's Claude Code settings files (model, plugins, local permissions), for reference.
 
 ## 8. History
 
