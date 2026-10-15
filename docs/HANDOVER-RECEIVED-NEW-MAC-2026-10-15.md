@@ -28,7 +28,7 @@ private/, site/assets/js/*.local.js, plus generated dist/, node_modules/, tests/
 tests/sim/shots) is fully covered by the bundle except the generated folders. The interim report PDF
 and the paper backup in private/ are byte-identical to the Downloads copies in the LiveHerz zip.
 
-## 2. Done on the new Mac so far (as of 15 Oct 2026, 18:00 Israel)
+## 2. Done on the new Mac (complete as of 15 Oct 2026, 18:30 Israel)
 
 - Repo cloned to ~/dairyschool-feedback (main at 0764125, tag present); this file is the only local change.
 - private/ → repo private/; clasp.json → backend/.clasp.json; clasprc.json → ~/.clasprc.json (0600);
@@ -36,13 +36,14 @@ and the paper backup in private/ are byte-identical to the Downloads copies in t
 - memory/*.md copied into this machine's Claude Code memory folder with a MEMORY.md index.
 - Installed: Node 26 (same major as the old Mac; Node 24 LTS fails `npm test` because it no longer expands
   the `tests/` directory argument), npm dependencies, Google Chrome (notarised build, Playwright launches
-  it with channel 'chrome'), clasp 3.4.1, gh 2.102.0 (not signed in yet), the four shell exports.
-- Verified: `npm test` 50/50; `tools/check-setup.sh --live` 27 ok, the 7 missing being gh sign-in, the
-  four poppler tools (Homebrew needs sudo, pending), and HEAD ≠ origin/main (this unpushed commit); the
-  backend config call answered ok on the second try (the first got Google's HTML hop); `status.sh` through
-  the bundled clasprc.json: open, 15 of 20, last answer 13 Oct 13:20 Israel, 20 names, i.e. the Sheet is
-  exactly as the bundle's README describes it.
-- Pending on the new Mac (needs Gal's password or browser): Xcode licence, Homebrew + poppler, gh login.
+  it with channel 'chrome'), clasp 3.4.1, gh 2.102.0 (signed in, git credentials set), Homebrew + poppler, the four shell exports;
+  the Xcode licence is accepted.
+- Verified: `npm test` 50/50; `tools/check-setup.sh --live` 35 ok, 0 missing (backend answers, status.sh
+  and the Sheet export through the bundled clasprc.json all fine): open, 15 of 20, last answer 13 Oct
+  13:20 Israel, 20 names, i.e. the Sheet is exactly as the bundle's README describes it. The report
+  recipe (§5.3 of the handover doc) rebuilt the interim report from the bundled export: both checkers pass
+  (122/122 and 144/144) and the PDF text is identical to the delivered 13 Oct PDF.
+- Nothing is pending on the new Mac.
 
 ## 3. Questions for the old-Mac session — please confirm each
 
