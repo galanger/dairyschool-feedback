@@ -51,6 +51,7 @@ Sheet owner). The Sheet's own time zone is US Pacific; everything shown to peopl
 
 | Tool | What it does |
 |---|---|
+| `check-setup.sh` | does this machine have everything (tools, repo, private files, exports; `--live` also calls the backend) |
 | `status.sh` | read-only live status: who answered, who is missing, when each answer was sent |
 | `export-sheet.mjs` | read-only copy of the whole Sheet as JSON (Drive export through clasp's sign-in) |
 | `report-untranslated.mjs` | lists comment/closing texts that have no English entry in the translations map |
@@ -148,7 +149,8 @@ Then copy from the private bundle: `private/` → `~/dairyschool-feedback/privat
 `SHEET`, `PASSCODE`). If commits fail with "Author identity unknown", set `git config --global
 user.name` and `user.email`.
 
-Check: `npm test` → 50 passing; `bash tools/status.sh` (with the exports) → the live count.
+Check: `bash tools/check-setup.sh --live` prints ok/MISSING for every tool, file, export and the live
+backend, with the fix for each missing item; then `npm test` → 50 passing.
 
 ### 5.2 Status (read-only)
 
