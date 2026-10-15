@@ -195,6 +195,26 @@ Confirm with a read-only call such as `curl -sL "<exec>?action=config&s=$SEMINAR
 Edit `site/`, `npm test`, push; the Pages workflow deploys (`gh run list --limit 3`). Compare the live
 files with the repo (`curl` each changed file) before telling Gal it is live.
 
+### 5.6 The next seminar (how the system is reused)
+
+1. Questions and names: copy `private/uvt-2026-seminar.json` as the model for the spec (`base`, titles,
+   dates, items with `category`, `key` for the two overall questions, EN and UK texts; the format is
+   described at the top of `tools/save-draft.mjs`) and `private/uvt-2026-names.csv` for the names
+   (`id,surname,given,surname_cyr,given_cyr`, names only, never passport numbers). The questions come
+   from the owner's program file; a Ukrainian speaker checks the UK texts.
+2. Rehearse on a test copy first: `PASSCODE=… node tools/save-draft.mjs private/uvt-2026-test.json
+   tests/dryrun-names.csv` writes a draft whose id contains "test" and prints its links; then
+   `SEMINAR=<that id> GUIDEKEY=<its key> PASSCODE=… OUT=tests/output/dryrun node tests/live-dryrun.mjs`
+   plays a whole seminar day on the live site (two fake phones answer, guide fixes, staff close, backups,
+   translations), and `PASSCODE=… node tools/remove-test-seminar.mjs <that id>` deletes the copy.
+3. The real one: `PASSCODE=… node tools/save-draft.mjs <spec> <names>` prints the three links; keep them
+   in `private/<id>-links.txt`. Preview on a phone (a draft sends nothing). Give the guide link to the
+   guide; the guide, or staff on `staff.html`, opens the survey when the group is ready. While it is
+   open: `status.sh`. The staff close from `staff.html`. Then the report recipe (§5.3) with a new, empty
+   translations map for that seminar.
+4. Never run "First setup" again in the Sheet, never reopen a closed survey, and only ids containing
+   "test" (or "sample") can be deleted.
+
 ## 6. Pitfalls learned
 
 - Google's reply hop is sometimes slow or lost (10–90 s, 404 or an empty redirect): `api.js` retries
@@ -238,5 +258,7 @@ to be copied to the new Mac:
 ## 8. History
 
 `git log` tells the story (26 Sep first commit, 29–30 Sep Google backend, 4–5 Oct go-live prep,
-11 Oct opened, 12–13 Oct report tools). `README.md` documents run, test, deploy and operate. The full
+11 Oct opened, 12–13 Oct report tools, 15 Oct handover; the tag `handover-2026-10-15` marks the state
+the new Mac starts from). The `gh-pages` branch is a leftover of the first deployment method and is
+unused: Pages builds `site/` from `main` through the workflow. `README.md` documents run, test, deploy and operate. The full
 record of decisions and findings is `memory/dairy-school-feedback-survey.md` in the bundle.
